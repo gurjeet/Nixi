@@ -1,5 +1,5 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2012, 2013, 2014, 2015, 2019 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2014, 2015, 2018, 2019 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2021 Lars-Dominik Braun <lars@6xq.net>
 ;;;
 ;;; This file is part of GNU Guix.
@@ -190,5 +190,23 @@ setup(
              python-dummy-fail-requirements
              python-dummy-fail-import
              python-dummy-fail-console-script)))
+(when (or (not (network-reachable?)) (shebang-too-long?))
+  (test-skip 1))
+
+(test-assert "gnu-build"
+  (let* ((url      "http://ftp.gnu.org/gnu/hello/hello-2.8.tar.gz")
+         (hash     (nix-base32-string->bytevector
+                    "0wqd8sjmxfskrflaxywc7gqw7sfawrfvdxd9skxawzfgyy0pzdz6"))
+         (tarball  (url-fetch* %store url 'sha256 hash
+                               #:guile %bootstrap-guile))
+         (build    ((store-lower gnu-build) %store "hello-2.8"
+                    (%bootstrap-inputs)
+                    #:source tarball
+                    #:guile %bootstrap-guile
+                    #:search-paths %bootstrap-search-paths))
+         (out      (derivation->output-path build)))
+    (and (build-derivations %store (list (pk 'hello-drv build)))
+         (valid-path? %store out)
+         (file-exists? (string-append out "/bin/hello")))))
 
 (test-end "builders")
