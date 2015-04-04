@@ -1413,13 +1413,12 @@ TARGET."
                       (derivation=? obj1 obj2))
                  (equal? obj1 obj2))))))))
 
-(define* (bag->derivation store bag
-                          #:optional context)
+(define* (bag->derivation bag #:optional context)
   "Return the derivation to build BAG for SYSTEM.  Optionally, CONTEXT can be
 a package object describing the context in which the call occurs, for improved
 error reporting."
   (if (bag-target bag)
-      (bag->cross-derivation store bag)
+      (bag->cross-derivation bag)
       (let* ((system     (bag-system bag))
              (inputs     (bag-transitive-inputs bag))
              (input-drvs (map (cut expand-input context <> #:native? #t)
@@ -1435,15 +1434,13 @@ error reporting."
         ;; that lead to the same derivation.  Delete those duplicates to avoid
         ;; issues down the road, such as duplicate entries in '%build-inputs'.
         ;; TODO: Change to monadic style.
-        (apply (store-lower (bag-build bag))
-               store (bag-name bag)
+        (apply (bag-build bag) (bag-name bag)
                (delete-duplicates input-drvs input=?)
                #:search-paths paths
                #:outputs (bag-outputs bag) #:system system
                (bag-arguments bag)))))
 
-(define* (bag->cross-derivation store bag
-                                #:optional context)
+(define* (bag->cross-derivation bag #:optional context)
   "Return the derivation to build BAG, which is actually a cross build.
 Optionally, CONTEXT can be a package object denoting the context of the call.
 This is an internal procedure."
@@ -1473,9 +1470,7 @@ This is an internal procedure."
                                     (_ '()))
                                    all))))
 
-    ;; TODO: Change to monadic style.
-    (apply (store-lower (bag-build bag))
-           store (bag-name bag)
+    (apply (bag-build bag) (bag-name bag)
            #:build-inputs (delete-duplicates build-drvs input=?)
            #:host-inputs (delete-duplicates host-drvs input=?)
            #:target-inputs (delete-duplicates target-drvs input=?)
@@ -1484,6 +1479,9 @@ This is an internal procedure."
            #:outputs (bag-outputs bag)
            #:system system #:target target
            (bag-arguments bag))))
+
+(define bag->derivation*
+  (store-lower bag->derivation))
 
 (define* (package-derivation store package
                              #:optional (system (%current-system))
@@ -1495,7 +1493,7 @@ This is an internal procedure."
   ;; system, will be queried many, many times in a row.
   (cached package (cons system graft?)
           (let* ((bag (package->bag package system #f #:graft? graft?))
-                 (drv (bag->derivation store bag package)))
+                 (drv (bag->derivation* store bag package)))
             (if graft?
                 (match (bag-grafts store bag)
                   (()
@@ -1518,7 +1516,7 @@ This is an internal procedure."
 system identifying string)."
   (cached package (list system target graft?)
           (let* ((bag (package->bag package system target #:graft? graft?))
-                 (drv (bag->derivation store bag package)))
+                 (drv (bag->derivation* store bag package)))
             (if graft?
                 (match (bag-grafts store bag)
                   (()
