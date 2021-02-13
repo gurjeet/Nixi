@@ -1,5 +1,5 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2013, 2014, 2015, 2016, 2019 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2013, 2014, 2015, 2016, 2019, 2021 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2013 Andreas Enge <andreas@enge.fr>
 ;;; Copyright © 2013 Nikita Karetnikov <nikita@karetnikov.org>
 ;;; Copyright © 2016 David Craven <david@craven.ch>
@@ -25,7 +25,8 @@
   #:use-module (guix search-paths)
   #:use-module (guix store)
   #:use-module (guix utils)
-  #:use-module (guix derivations)
+  #:use-module (guix gexp)
+  #:use-module (guix monads)
   #:use-module (guix packages)
   #:use-module (guix build-system)
   #:use-module (guix build-system gnu)
@@ -70,8 +71,9 @@ to NAME and VERSION."
     (guix build json)
     ,@%cargo-utils-modules))
 
-(define* (cargo-build store name inputs
+(define* (cargo-build name inputs
                       #:key
+                      source
                       (tests? #t)
                       (test-target #f)
                       (vendor-dir "guix-vendor")
@@ -91,45 +93,35 @@ to NAME and VERSION."
   "Build SOURCE using CARGO, and with INPUTS."
 
   (define builder
-    `(begin
-       (use-modules ,@modules)
-       (cargo-build #:name ,name
-                    #:source ,(match (assoc-ref inputs "source")
-                                (((? derivation? source))
-                                 (derivation->output-path source))
-                                ((source)
-                                 source)
-                                (source
-                                 source))
-                    #:system ,system
-                    #:test-target ,test-target
-                    #:vendor-dir ,vendor-dir
-                    #:cargo-build-flags ,cargo-build-flags
-                    #:cargo-test-flags ,cargo-test-flags
-                    #:features ,features
-                    #:skip-build? ,skip-build?
-                    #:tests? ,(and tests? (not skip-build?))
-                    #:phases ,phases
-                    #:outputs %outputs
-                    #:search-paths ',(map search-path-specification->sexp
-                                          search-paths)
-                    #:inputs %build-inputs)))
+    (with-imported-modules imported-modules
+      #~(begin
+          (use-modules #$@modules)
 
-  (define guile-for-build
-    (match guile
-      ((? package?)
-       (package-derivation store guile system #:graft? #f))
-      (#f                                         ; the default
-       (let* ((distro (resolve-interface '(gnu packages commencement)))
-              (guile  (module-ref distro 'guile-final)))
-         (package-derivation store guile system #:graft? #f)))))
+          (cargo-build #:name #$name
+                       #:source #+source
+                       #:system #$system
+                       #:test-target #$test-target
+                       #:vendor-dir #$vendor-dir
+                       #:cargo-build-flags #$cargo-build-flags
+                       #:cargo-test-flags #$cargo-test-flags
+                       #:features #$features
+                       #:skip-build? #$skip-build?
+                       #:tests? #$(and tests? (not skip-build?))
+                       #:phases #$phases
+                       #:outputs (list #$@(map (lambda (name)
+                                                 #~(cons #$name
+                                                         (ungexp output name)))
+                                               outputs))
+                       #:inputs (map (lambda (tuple)
+                                       (apply cons tuple))
+                                     '#$inputs)
+                       #:search-paths '#$(map search-path-specification->sexp
+                                             search-paths)))))
 
-  (build-expression->derivation store name builder
-                                #:inputs inputs
-                                #:system system
-                                #:modules imported-modules
-                                #:outputs outputs
-                                #:guile-for-build guile-for-build))
+  (gexp->derivation name builder
+                    #:system system
+                    #:target #f
+                    #:guile-for-build guile))
 
 (define (package-cargo-inputs p)
   (apply
