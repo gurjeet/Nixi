@@ -151,6 +151,7 @@ MODULES =					\
   guix/build-system/node.scm			\
   guix/build-system/perl.scm			\
   guix/build-system/python.scm			\
+  guix/build-system/renpy.scm			\
   guix/build-system/ocaml.scm			\
   guix/build-system/qt.scm			\
   guix/build-system/waf.scm			\
@@ -206,6 +207,7 @@ MODULES =					\
   guix/build/ocaml-build-system.scm		\
   guix/build/qt-build-system.scm		\
   guix/build/r-build-system.scm			\
+  guix/build/renpy-build-system.scm			\
   guix/build/rakudo-build-system.scm		\
   guix/build/ruby-build-system.scm		\
   guix/build/scons-build-system.scm		\
@@ -220,7 +222,6 @@ MODULES =					\
   guix/build/union.scm				\
   guix/build/profiles.scm			\
   guix/build/compile.scm			\
-  guix/build/rpath.scm				\
   guix/build/cvs.scm				\
   guix/build/svn.scm				\
   guix/build/syscalls.scm                       \
@@ -363,10 +364,6 @@ AUX_FILES =						\
   gnu/packages/aux-files/linux-libre/5.10-arm64.conf	\
   gnu/packages/aux-files/linux-libre/5.10-i686.conf	\
   gnu/packages/aux-files/linux-libre/5.10-x86_64.conf	\
-  gnu/packages/aux-files/linux-libre/5.9-arm.conf	\
-  gnu/packages/aux-files/linux-libre/5.9-arm64.conf	\
-  gnu/packages/aux-files/linux-libre/5.9-i686.conf	\
-  gnu/packages/aux-files/linux-libre/5.9-x86_64.conf	\
   gnu/packages/aux-files/linux-libre/5.4-arm.conf	\
   gnu/packages/aux-files/linux-libre/5.4-arm64.conf	\
   gnu/packages/aux-files/linux-libre/5.4-i686.conf	\
@@ -383,6 +380,8 @@ AUX_FILES =						\
   gnu/packages/aux-files/linux-libre/4.4-i686.conf	\
   gnu/packages/aux-files/linux-libre/4.4-x86_64.conf	\
   gnu/packages/aux-files/pack-audit.c			\
+  gnu/packages/aux-files/python/sanity-check.py		\
+  gnu/packages/aux-files/python/sitecustomize.py	\
   gnu/packages/aux-files/run-in-namespace.c
 
 # Templates, examples.

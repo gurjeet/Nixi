@@ -15,7 +15,7 @@
 ;;; Copyright © 2018 Clément Lassieur <clement@lassieur.org>
 ;;; Copyright © 2019 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
-;;; Copyright © 2021 Leo Le Bouter <lle-bout@zaclys.net>
+;;; Copyright © 2020 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -59,6 +59,7 @@
   #:use-module (gnu packages linux)
   #:use-module (gnu packages ncurses)
   #:use-module (gnu packages nettle)
+  #:use-module (gnu packages networking)
   #:use-module (gnu packages perl)
   #:use-module (gnu packages pkg-config)
   #:use-module (gnu packages python)
@@ -165,31 +166,29 @@ living in the same process.")
 (define-public gnutls
   (package
     (name "gnutls")
-    ;; XXX Unversion openconnect's "gnutls" input when ungrafting.
-    (replacement gnutls/fixed)
-    (version "3.6.12")
+    (version "3.6.15")
     (source (origin
-             (method url-fetch)
-             (uri
+              (method url-fetch)
               ;; Note: Releases are no longer on ftp.gnu.org since the
               ;; schism (after version 3.1.5).
-              (string-append "mirror://gnupg/gnutls/v"
-                             (version-major+minor version)
-                             "/gnutls-" version ".tar.xz"))
-             (patches
-              (search-patches "gnutls-skip-trust-store-test.patch"
-                              "gnutls-fix-status-request-revoked.patch"))
-             (sha256
-              (base32
-               "0jvca1qahn9lrwv6f5kfs95icirc15b2a8x9fzczyj996ipg3b5z"))))
+              (uri (string-append "mirror://gnupg/gnutls/v"
+                                  (version-major+minor version)
+                                  "/gnutls-" version ".tar.xz"))
+              (patches (search-patches "gnutls-skip-trust-store-test.patch"
+                                       "gnutls-cross.patch"))
+              (sha256
+               (base32
+                "0n0m93ymzd0q9hbknxc2ycanz49sqlkyyf73g9fk7n787llc7a0f"))))
     (build-system gnu-build-system)
     (arguments
      `(#:tests? ,(not (or (%current-target-system)
                           (hurd-target?)))
-       ;; Ensure we don't keep a reference to net-tools.
-       #:disallowed-references ,(if (hurd-target?) '() (list net-tools))
+       ;; Ensure we don't keep a reference to the tools used for testing.
+       #:disallowed-references ,(if (hurd-target?)
+                                    '()
+                                    (list net-tools iproute socat))
        #:configure-flags
-       (list
+       (cons*
              ;; GnuTLS doesn't consult any environment variables to specify
              ;; the location of the system-wide trust store.  Instead it has a
              ;; configure-time option.  Unless specified, its configure script
@@ -210,13 +209,26 @@ living in the same process.")
              (string-append "--with-guile-extension-dir="
                             "$(libdir)/guile/$(GUILE_EFFECTIVE_VERSION)/extensions")
 
-             ;; FIXME: Temporarily disable p11-kit support since it is not
-             ;; working on mips64el.
-             "--without-p11-kit")
+             (let ((system ,(or (%current-target-system)
+                                (%current-system))))
+               (if (string-prefix? "mips64el" system)
+                   (list
+                    ;; FIXME: Temporarily disable p11-kit support since it is
+                    ;; not working on mips64el.
+                    "--without-p11-kit")
+                   '())))
 
        #:phases (modify-phases %standard-phases
-                  (add-after
-                   'install 'move-doc
+                  ;; fastopen.sh fails to connect to the server in the builder
+                  ;; environment (see:
+                  ;; https://gitlab.com/gnutls/gnutls/-/issues/1095).
+                  (add-after 'unpack 'disable-failing-tests
+                    (lambda _
+                      (substitute* "tests/fastopen.sh"
+                        (("^unset RETCODE")
+                         "exit 77\n"))            ;skip
+                      #t))
+                  (add-after 'install 'move-doc
                    (lambda* (#:key outputs #:allow-other-keys)
                      ;; Copy the 4.1 MiB of section 3 man pages to "doc".
                      (let* ((out    (assoc-ref outputs "out"))
@@ -231,11 +243,19 @@ living in the same process.")
                "debug"
                "doc"))                            ;4.1 MiB of man pages
     (native-inputs
-     `(,@(if (hurd-target?) '()
-             `(("net-tools" ,net-tools)))
+     `(,@(if (%current-target-system)             ;for cross-build
+             `(("guile" ,guile-3.0))              ;to create .go files
+             '())
+       ,@(if (hurd-target?)
+             '()
+             `(("net-tools" ,net-tools)
+               ("iproute" ,iproute)               ;for 'ss'
+               ("socat" ,socat)))                 ;several tests rely on it
        ("pkg-config" ,pkg-config)
+       ("texinfo" ,texinfo)
        ("which" ,which)
-       ,@(if (hurd-target?) '()
+       ,@(if (hurd-target?)
+             '()
              `(("datefudge" ,datefudge)))         ;tests rely on 'datefudge'
        ("util-linux" ,util-linux)))               ;one test needs 'setsid'
     (inputs
@@ -245,7 +265,12 @@ living in the same process.")
      `(("libtasn1" ,libtasn1)
        ("libidn2" ,libidn2)
        ("nettle" ,nettle)
-       ("zlib" ,zlib)))
+       ("zlib" ,zlib)
+       ,@(let ((system (or (%current-target-system)
+                           (%current-system))))
+           (if (string-prefix? "mips64el" system)
+               '()
+               `(("p11-kit" ,p11-kit))))))
     (home-page "https://www.gnu.org/software/gnutls/")
     (synopsis "Transport layer security library")
     (description
@@ -256,27 +281,6 @@ required structures.")
     (license license:lgpl2.1+)
     (properties '((ftp-server . "ftp.gnutls.org")
                   (ftp-directory . "/gcrypt/gnutls")))))
-
-;; Replacement package to fix multiple security vulnerabilities.
-(define-public gnutls/fixed
-  (package
-    (inherit gnutls)
-    (version "3.6.15")
-    (source (origin
-              (method url-fetch)
-              (uri (string-append "mirror://gnupg/gnutls/v"
-                                  (version-major+minor version)
-                                  "/gnutls-" version ".tar.xz"))
-              (patches (search-patches "gnutls-skip-trust-store-test.patch"
-                                       "gnutls-cross.patch"))
-              (sha256
-               (base32
-                "0n0m93ymzd0q9hbknxc2ycanz49sqlkyyf73g9fk7n787llc7a0f"))))
-    (native-inputs
-     `(,@(if (%current-target-system)             ;for cross-build
-             `(("guile" ,guile-3.0))              ;to create .go files
-             '())
-       ,@(package-native-inputs gnutls)))))
 
 (define-public gnutls/guile-2.0
   ;; GnuTLS for Guile 2.0.
@@ -290,7 +294,7 @@ required structures.")
   ;; Authentication of Named Entities.  This is required for GNS functionality
   ;; by GNUnet and gnURL.  This is done in an extra package definition
   ;; to have the choice between GnuTLS with Dane and without Dane.
-  (package/inherit gnutls/fixed
+  (package/inherit gnutls
     (name "gnutls-dane")
     (inputs `(("unbound" ,unbound)
               ,@(package-inputs gnutls)))))
@@ -309,8 +313,7 @@ required structures.")
 (define-public openssl
   (package
    (name "openssl")
-   (version "1.1.1f")
-   (replacement openssl-1.1.1i)
+   (version "1.1.1i")
    (source (origin
              (method url-fetch)
              (uri (list (string-append "https://www.openssl.org/source/openssl-"
@@ -320,10 +323,10 @@ required structures.")
                         (string-append "ftp://ftp.openssl.org/source/old/"
                                        (string-trim-right version char-set:letter)
                                        "/openssl-" version ".tar.gz")))
+             (patches (search-patches "openssl-1.1-c-rehash-in.patch"))
              (sha256
               (base32
-               "0d9zv9srjqivs8nn099fpbjv1wyhfcb8lzy491dpmfngdvz6nv0q"))
-             (patches (search-patches "openssl-1.1-c-rehash-in.patch"))))
+               "0hjj1phcwkz69lx1lrvr9grhpl4y529mwqycqc1hdla1zqsnmgp8"))))
    (build-system gnu-build-system)
    (outputs '("out"
               "doc"         ;6.8 MiB of man3 pages and full HTML documentation
@@ -441,24 +444,6 @@ required structures.")
     "OpenSSL is an implementation of SSL/TLS.")
    (license license:openssl)
    (home-page "https://www.openssl.org/")))
-
-(define openssl-1.1.1i
-  (package
-   (inherit openssl)
-   (version "1.1.1i")
-   (source (origin
-             (method url-fetch)
-             (uri (list (string-append "https://www.openssl.org/source/openssl-"
-                                       version ".tar.gz")
-                        (string-append "ftp://ftp.openssl.org/source/"
-                                       "openssl-" version ".tar.gz")
-                        (string-append "ftp://ftp.openssl.org/source/old/"
-                                       (string-trim-right version char-set:letter)
-                                       "/openssl-" version ".tar.gz")))
-             (patches (search-patches "openssl-1.1-c-rehash-in.patch"))
-             (sha256
-              (base32
-               "0hjj1phcwkz69lx1lrvr9grhpl4y529mwqycqc1hdla1zqsnmgp8"))))))
 
 (define-public openssl-1.0
   (package

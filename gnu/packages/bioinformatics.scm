@@ -12,7 +12,7 @@
 ;;; Copyright © 2018 Joshua Sierles, Nextjournal <joshua@nextjournal.com>
 ;;; Copyright © 2018 Gábor Boskovits <boskovits@gmail.com>
 ;;; Copyright © 2018, 2019, 2020, 2021 Mădălin Ionel Patrașcu <madalinionel.patrascu@mdc-berlin.de>
-;;; Copyright © 2019, 2020 Maxim Cournoyer <maxim.cournoyer@gmail.com>
+;;; Copyright © 2019, 2020, 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;; Copyright © 2019 Brian Leung <bkleung89@gmail.com>
 ;;; Copyright © 2019 Brett Gilio <brettg@gnu.org>
 ;;; Copyright © 2020 Björn Höfling <bjoern.hoefling@bjoernhoefling.de>
@@ -210,8 +210,7 @@ structure of the predicted RNA.")
               (snippet
                `(begin
                   ;; Delete bundled htslib.
-                  (delete-file-recursively "c/htslib-1.3.1")
-                  #t))))
+                  (delete-file-recursively "c/htslib-1.3.1")))))
     (build-system python-build-system)
     (arguments
      `(#:python ,python-2 ; BamM is Python 2 only.
@@ -231,37 +230,22 @@ structure of the predicted RNA.")
                  ;; Use autogen so that 'configure' works.
                  (substitute* "autogen.sh" (("/bin/sh") sh))
                  (setenv "CONFIG_SHELL" sh)
-                 (invoke "./autogen.sh")))
-             #t))
-         (delete 'build)
-         ;; Run tests after installation so compilation only happens once.
-         (delete 'check)
-         (add-after 'install 'wrap-executable
-           (lambda* (#:key outputs #:allow-other-keys)
-            (let* ((out  (assoc-ref outputs "out"))
-                   (path (getenv "PATH")))
-              (wrap-program (string-append out "/bin/bamm")
-                `("PATH" ":" prefix (,path))))
-            #t))
-         (add-after 'wrap-executable 'post-install-check
-           (lambda* (#:key inputs outputs #:allow-other-keys)
-             (setenv "PATH"
-                     (string-append (assoc-ref outputs "out")
-                                    "/bin:"
-                                    (getenv "PATH")))
-             (setenv "PYTHONPATH"
-                     (string-append
-                      (assoc-ref outputs "out")
-                      "/lib/python"
-                      (string-take (string-take-right
-                                    (assoc-ref inputs "python") 5) 3)
-                      "/site-packages:"
-                      (getenv "PYTHONPATH")))
+                 (invoke "./autogen.sh")))))
+         (delete 'build)                ;the build loops otherwise
+         (replace 'check
+           (lambda _
              ;; There are 2 errors printed, but they are safe to ignore:
              ;; 1) [E::hts_open_format] fail to open file ...
              ;; 2) samtools view: failed to open ...
-             (invoke "nosetests")
-             #t)))))
+             (invoke "nosetests")))
+         (add-after 'install 'wrap-executable
+           (lambda* (#:key inputs outputs #:allow-other-keys)
+             (let* ((out  (assoc-ref outputs "out"))
+                    (path (getenv "PATH"))
+                    (pythonpath (getenv "GUIX_PYTHONPATH")))
+               (wrap-program (string-append out "/bin/bamm")
+                 `("PATH" ":" prefix (,path))
+                 `("GUIX_PYTHONPATH" ":" prefix (,pythonpath)))))))))
     (native-inputs
      `(("autoconf" ,autoconf)
        ("automake" ,automake)
@@ -818,9 +802,7 @@ intended to behave exactly the same as the original BWK awk.")
                 "14w5i40gi25clrr7h4wa2pcpnyipya8hrqi7nq77553zc5wf0df0"))))
     (build-system python-build-system)
     (arguments
-     `(#:modules ((ice-9 ftw)
-                  (srfi srfi-1)
-                  (srfi srfi-26)
+     `(#:modules ((srfi srfi-26)
                   (guix build utils)
                   (guix build python-build-system))
        ;; See https://github.com/daler/pybedtools/issues/192
@@ -846,10 +828,7 @@ intended to behave exactly the same as the original BWK awk.")
              ;; This issue still occurs on python2
              (substitute* "pybedtools/test/test_issues.py"
                (("def test_issue_303")
-                "def _test_issue_303"))
-             #t))
-         ;; TODO: Remove phase after it's part of PYTHON-BUILD-SYSTEM.
-         ;; build system.
+                "def _test_issue_303"))))
          ;; Force the Cythonization of C++ files to guard against compilation
          ;; problems.
          (add-after 'unpack 'remove-cython-generated-files
@@ -861,30 +840,12 @@ intended to behave exactly the same as the original BWK awk.")
                  (string-take filename (string-index-right filename #\.)))
                (define (cythonized? c/c++-file)
                  (member (strip-extension c/c++-file) cython-sources))
-               (for-each delete-file (filter cythonized? c/c++-files))
-               #t)))
+               (for-each delete-file (filter cythonized? c/c++-files)))))
          (add-after 'remove-cython-generated-files 'generate-cython-extensions
            (lambda _
              (invoke "python" "setup.py" "cythonize")))
          (replace 'check
            (lambda _
-             (let* ((cwd (getcwd))
-                    (build-root-directory (string-append cwd "/build/"))
-                    (build (string-append
-                            build-root-directory
-                            (find (cut string-prefix? "lib" <>)
-                                  (scandir (string-append
-                                            build-root-directory)))))
-                    (scripts (string-append
-                              build-root-directory
-                              (find (cut string-prefix? "scripts" <>)
-                                    (scandir build-root-directory)))))
-               (setenv "PYTHONPATH"
-                       (string-append build ":" (getenv "PYTHONPATH")))
-               ;; Executable scripts such as 'intron_exon_reads.py' must be
-               ;; available in the PATH.
-               (setenv "PATH"
-                       (string-append scripts ":" (getenv "PATH"))))
              ;; The tests need to be run from elsewhere...
              (mkdir-p "/tmp/test")
              (copy-recursively "pybedtools/test" "/tmp/test")
@@ -1941,15 +1902,10 @@ multiple sequence alignments.")
               (snippet '(begin
                           ;; Drop bundled htslib. TODO: Also remove samtools
                           ;; and bcftools.
-                          (delete-file-recursively "htslib")
-                          #t))))
+                          (delete-file-recursively "htslib")))))
     (build-system python-build-system)
     (arguments
-     `(#:modules ((ice-9 ftw)
-                  (srfi srfi-26)
-                  (guix build python-build-system)
-                  (guix build utils))
-       #:phases
+     `(#:phases
        (modify-phases %standard-phases
          (add-before 'build 'set-flags
            (lambda* (#:key inputs #:allow-other-keys)
@@ -1959,22 +1915,16 @@ multiple sequence alignments.")
              (setenv "HTSLIB_INCLUDE_DIR"
                      (string-append (assoc-ref inputs "htslib") "/include"))
              (setenv "LDFLAGS" "-lncurses")
-             (setenv "CFLAGS" "-D_CURSES_LIB=1")
-             #t))
+             (setenv "CFLAGS" "-D_CURSES_LIB=1")))
          (replace 'check
-           (lambda* (#:key inputs outputs #:allow-other-keys)
+           (lambda _
              ;; This file contains tests that require a connection to the
              ;; internet.
              (delete-file "tests/tabix_test.py")
-             ;; FIXME: This test fails
+             ;; FIXME: These tests fail with "AttributeError: 'array.array'
+             ;; object has no attribute 'tostring'".
              (delete-file "tests/AlignmentFile_test.py")
-             ;; Add first subdirectory of "build" directory to PYTHONPATH.
-             (setenv "PYTHONPATH"
-                     (string-append
-                      (getenv "PYTHONPATH")
-                      ":" (getcwd) "/build/"
-                      (car (scandir "build"
-                                    (negate (cut string-prefix? "." <>))))))
+             (delete-file "tests/AlignedSegment_test.py")
              ;; Step out of source dir so python does not import from CWD.
              (with-directory-excursion "tests"
                (setenv "HOME" "/tmp")
@@ -2315,9 +2265,9 @@ gene predictor designed to work with assembled, aligned RNA-seq transcripts.")
           (lambda* (#:key inputs outputs #:allow-other-keys)
             ;; Make sure 'couger' runs with the correct PYTHONPATH.
             (let* ((out (assoc-ref outputs "out"))
-                   (path (getenv "PYTHONPATH")))
+                   (path (getenv "GUIX_PYTHONPATH")))
               (wrap-program (string-append out "/bin/couger")
-                `("PYTHONPATH" ":" prefix (,path))))
+                `("GUIX_PYTHONPATH" ":" prefix (,path))))
             #t)))))
     (inputs
      `(("python" ,python-2)
@@ -2980,19 +2930,14 @@ data and settings.")
              (substitute* "src/plasma/fasta.hpp"
                (("#define FASTA_HPP" line)
                 (string-append line "\n#include <random>")))
-             #t))
-         ;; FIXME: this is needed because we're using texlive-union, which
-         ;; doesn't handle fonts correctly.  It expects to be able to generate
-         ;; fonts in the home directory.
-         (add-before 'build 'setenv-HOME
-           (lambda _ (setenv "HOME" "/tmp") #t)))))
+             #t)))))
     (inputs
      `(("boost" ,boost)
        ("cairo" ,cairo)
        ("rmath-standalone" ,rmath-standalone)))
     (native-inputs
-     `(("texlive" ,(texlive-union (list texlive-fonts-cm
-                                        texlive-fonts-amsfonts
+     `(("texlive" ,(texlive-updmap.cfg (list texlive-cm
+                                        texlive-amsfonts
 
                                         texlive-latex-doi
                                         texlive-latex-examplep
@@ -5712,7 +5657,7 @@ phylogenies.")
                             "/include/htslib/sam.h")
              (string-append "SAMLIBS="
                             (assoc-ref %build-inputs "htslib")
-                            "/lib/libhts.a"))
+                            "/lib/libhts.so"))
        #:phases
        (modify-phases %standard-phases
          ;; No "configure" script.
@@ -6431,25 +6376,6 @@ complexity samples.")
         (base32
          "148vcb7w2wr6a4w6vs2bsxanbqibxfk490zbcbg4m61s8669zdjx"))))
     (build-system python-build-system)
-    (arguments
-     '(#:phases
-       (modify-phases %standard-phases
-         ;; Tests must be run after installation, as the "screed" command does
-         ;; not exist right after building.
-         (delete 'check)
-         (add-after 'install 'check
-           (lambda* (#:key inputs outputs #:allow-other-keys)
-             (let ((out (assoc-ref outputs "out")))
-               (setenv "PYTHONPATH"
-                       (string-append out "/lib/python"
-                                      (string-take (string-take-right
-                                                    (assoc-ref inputs "python")
-                                                    5) 3)
-                                      "/site-packages:"
-                                      (getenv "PYTHONPATH")))
-               (setenv "PATH" (string-append out "/bin:" (getenv "PATH"))))
-             (invoke "python" "setup.py" "test")
-             #t)))))
     (native-inputs
      `(("python-pytest" ,python-pytest)
        ("python-pytest-cov" ,python-pytest-cov)
@@ -10922,7 +10848,7 @@ matplotlib.use('Agg')
 " line)))
                ;; Make sure GESS has all modules in its path
                (wrap-script (string-append target "GESS.py")
-                 `("PYTHONPATH" ":" = (,target ,(getenv "PYTHONPATH"))))
+                 `("GUIX_PYTHONPATH" ":" = (,target ,(getenv "GUIX_PYTHONPATH"))))
                (mkdir-p bin)
                (symlink (string-append target "GESS.py")
                         (string-append bin "GESS.py"))
@@ -11869,11 +11795,7 @@ variational inference.")
        (modify-phases %standard-phases
          (replace 'check
            (lambda _
-             (setenv "PYTHONPATH"
-                     (string-append (getcwd) ":"
-                                    (getenv "PYTHONPATH")))
-             (invoke "pytest" "tests")
-             #t)))))
+             (invoke "pytest" "tests"))))))
     (propagated-inputs
      `(("python-h5py" ,python-h5py)
        ("python-numpy" ,python-numpy)
@@ -13101,11 +13023,11 @@ conversions, region filtering, FASTA sequence extraction and more.")
              (lambda* (#:key outputs #:allow-other-keys)
                (let* ((out (assoc-ref outputs "out"))
                       (bin (string-append out "/bin"))
-                      (path (getenv "PYTHONPATH")))
+                      (path (getenv "GUIX_PYTHONPATH")))
                  (for-each (lambda (script)
                              (install-file script bin)
                              (wrap-program (string-append bin "/" script)
-                               `("PYTHONPATH" ":" prefix (,path))))
+                               `("GUIX_PYTHONPATH" ":" prefix (,path))))
                            '("cmp_bed.py"
                              "find_circ.py"
                              "maxlength.py"
@@ -13150,11 +13072,7 @@ in RNA-seq data.")
              (delete-file "scanpy/tests/test_preprocessing.py")
              (delete-file "scanpy/tests/test_read_10x.py")
 
-             (setenv "PYTHONPATH"
-                     (string-append (getcwd) ":"
-                                    (getenv "PYTHONPATH")))
-             (invoke "pytest")
-             #t)))))
+             (invoke "pytest"))))))
     (propagated-inputs
      `(("python-anndata" ,python-anndata)
        ("python-h5py" ,python-h5py)
@@ -14051,10 +13969,10 @@ datasets.")
            (add-after 'install 'wrap-program
              (lambda* (#:key inputs outputs #:allow-other-keys)
                (let* ((out (assoc-ref outputs "out"))
-                      (path (getenv "PYTHONPATH")))
+                      (path (getenv "GUIX_PYTHONPATH")))
                  (wrap-program (string-append out
                                               "/share/filtlong/scripts/histogram.py")
-                   `("PYTHONPATH" ":" prefix (,path))))
+                   `("GUIX_PYTHONPATH" ":" prefix (,path))))
                #t))
            (add-before 'check 'patch-tests
              (lambda _
@@ -14128,7 +14046,7 @@ choosing which reads pass the filter.")
            (add-after 'install 'wrap-programs
              (lambda* (#:key outputs #:allow-other-keys)
                (for-each (lambda (file)
-                           (wrap-program file `("PYTHONPATH" ":" prefix (,path))))
+                           (wrap-program file `("GUIX_PYTHONPATH" ":" prefix (,path))))
                          (find-files "/share/nanopolish/scripts" "\\.py"))
                (for-each (lambda (file)
                            (wrap-program file `("PERL5LIB" ":" prefix (,path))))
@@ -14343,7 +14261,7 @@ to an artifact/contaminant file.")
      `(("openmpi" ,openmpi)
        ("zlib" ,zlib)))
     (native-inputs
-     `(("texlive" ,(texlive-union (list texlive-latex-graphics
+     `(("texlive" ,(texlive-updmap.cfg (list texlive-latex-graphics
                                         texlive-latex-hyperref)))))
     (home-page "https://www.ebi.ac.uk/~zerbino/velvet/")
     (synopsis "Nucleic acid sequence assembler for very short reads")
@@ -15209,18 +15127,18 @@ library automatically handles index file generation and use.")
              (let* ((out (assoc-ref outputs "out"))
                     (pkgconfig (string-append out "/lib/pkgconfig")))
                (mkdir-p pkgconfig)
-               (with-output-to-file (string-append pkgconfig "/libvcflib.pc")
+               (with-output-to-file (string-append pkgconfig "/vcflib.pc")
                  (lambda _
                    (format #t "prefix=~a~@
                            exec_prefix=${prefix}~@
                            libdir=${exec_prefix}/lib~@
                            includedir=${prefix}/include~@
                            ~@
-                           Name: libvcflib~@
+                           Name: vcflib~@
                            Version: ~a~@
-                           Requires: smithwaterman, fastahack~@
+                           Requires: smithwaterman, fastahack, tabixpp~@
                            Description: C++ library for parsing and manipulating VCF files~@
-                           Libs: -L${libdir} -llibvcflib~@
+                           Libs: -L${libdir} -lvcflib~@
                            Cflags: -I${includedir}~%"
                            out ,version)))
                  #t))))))

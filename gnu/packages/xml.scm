@@ -5,7 +5,7 @@
 ;;; Copyright © 2015 Sou Bunnbu <iyzsong@gmail.com>
 ;;; Copyright © 2015, 2016, 2017, 2018, 2020 Ricardo Wurmus <rekado@elephly.net>
 ;;; Copyright © 2015, 2016, 2017 Mark H Weaver <mhw@netris.org>
-;;; Copyright © 2015, 2016, 2017, 2018 Efraim Flashner <efraim@flashner.co.il>
+;;; Copyright © 2015, 2016, 2017, 2018, 2020, 2021 Efraim Flashner <efraim@flashner.co.il>
 ;;; Copyright © 2015 Raimon Grau <raimonster@gmail.com>
 ;;; Copyright © 2016 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2016, 2017 Leo Famulari <leo@famulari.name>
@@ -115,7 +115,7 @@ the entire document.")
 (define-public expat
   (package
     (name "expat")
-    (version "2.2.9")
+    (version "2.2.10")
     (source (let ((dot->underscore (lambda (c) (if (char=? #\. c) #\_ c))))
               (origin
                 (method url-fetch)
@@ -127,7 +127,7 @@ the entire document.")
                             "/expat-" version ".tar.xz")))
                 (sha256
                  (base32
-                  "1960mmgbb4cm64n1p0nz3hrs1pw03hkrfcw8prmnn4622mdrd9hy")))))
+                  "1wi5bi4cbz069mnwkrc2whi4sslsgl6m5b7dk0zg0qsvif7m7zjx")))))
     (build-system gnu-build-system)
     (arguments
      '(#:configure-flags '("--disable-static")))
@@ -175,24 +175,30 @@ hierarchical form with variable field lengths.")
               (base32
                "07xynh8hcxb2yb1fs051xrgszjvj37wnxvxgsj10rzmqzy9y3zma"))))
     (build-system gnu-build-system)
-    (outputs '("out" "static"))
+    (outputs '("out" "static" "doc"))
     (arguments
      `(#:phases (modify-phases %standard-phases
-                  (add-after 'install 'move-static-libs
+                  (add-after 'install 'use-other-outputs
                     (lambda* (#:key outputs #:allow-other-keys)
-                      (let ((src (string-append (assoc-ref outputs "out") "/lib"))
+                      (let ((src (assoc-ref outputs "out"))
+                            (doc (string-append (assoc-ref outputs "doc") "/share"))
                             (dst (string-append (assoc-ref outputs "static")
                                                 "/lib")))
+                        (mkdir-p doc)
                         (mkdir-p dst)
+                        (for-each (lambda (dir)
+                                    (rename-file (string-append src "/share/" dir)
+                                                 (string-append doc "/" dir)))
+                                  '("doc" "gtk-doc"))
                         (for-each (lambda (ar)
                                     (rename-file ar (string-append dst "/"
                                                                    (basename ar))))
-                                  (find-files src "\\.a$"))
+                                  (find-files (string-append src "/lib") "\\.a$"))
 
                         ;; Remove reference to the static library from the .la
                         ;; file such that Libtool does the right thing when both
                         ;; the shared and static variants are available.
-                        (substitute* (string-append src "/libxml2.la")
+                        (substitute* (string-append src "/lib/libxml2.la")
                           (("^old_library='libxml2.a'") "old_library=''"))
                         #t))))))
     (home-page "http://www.xmlsoft.org/")
@@ -294,8 +300,10 @@ It uses libxml2 to access the XML files.")
     (name "python-libxml2")
     (source (origin
               (inherit (package-source libxml2))
-              (patches (cons (search-patch "python-libxml2-utf8.patch")
-                             (origin-patches (package-source libxml2))))))
+              (patches
+                (append (search-patches "python-libxml2-python39-compat.patch"
+                                        "python-libxml2-utf8.patch")
+                        (origin-patches (package-source libxml2))))))
     (build-system python-build-system)
     (outputs '("out"))
     (arguments
@@ -1203,6 +1211,9 @@ Libxml2).")
     (inputs
      `(("nss" ,nss)
        ("libltdl" ,libltdl)))
+    (arguments
+     ;; NSS no longer supports MD5 since 3.59, don't attempt to use it.
+     '(#:configure-flags '("--disable-md5")))
     (synopsis "XML Security Library (using NSS instead of GnuTLS)")))
 
 (define-public minixml
@@ -2382,15 +2393,18 @@ The central program included in this package is @code{onsgmls}, which replaces
 (define-public python-elementpath
   (package
     (name "python-elementpath")
-    (version "1.4.0")
+    (version "2.0.3")
     (source
      (origin
        (method url-fetch)
        (uri (pypi-uri "elementpath" version))
        (sha256
         (base32
-         "15h7d41v48q31hzjay7qzixdv531hnga3h35hksk7x52pgqcrkz7"))))
+         "1kxx573ywqfh6j6aih2i6hhsya6kz79qq4bgz6yskwk6b18jyr8z"))))
     (build-system python-build-system)
+    ;; The test suite is not run, to avoid a dependency cycle with
+    ;; python-xmlschema.
+    (arguments `(#:tests? #f))
     (home-page
      "https://github.com/sissaschool/elementpath")
     (synopsis
@@ -2407,13 +2421,13 @@ because lxml.etree already has it's own implementation of XPath 1.0.")
 (define-public python-lxml
   (package
     (name "python-lxml")
-    (version "4.4.2")
+    (version "4.5.2")
     (source
      (origin
        (method url-fetch)
        (uri (pypi-uri "lxml" version))
        (sha256
-        (base32 "01nvb5j8vs9nk4z5s3250b1m22b4d08kffa36if3g1mdygdrvxpg"))))
+        (base32 "1xhx76hr1w3lllfcg9a01f2y0zwyf59ijnvlh08299mjh8b3mhfd"))))
     (build-system python-build-system)
     (arguments
      `(#:phases (modify-phases %standard-phases
@@ -2436,7 +2450,7 @@ libxml2 and libxslt.")
 (define-public python-xmlschema
   (package
     (name "python-xmlschema")
-    (version "1.1.2")
+    (version "1.2.5")
     (source (origin
               ;; Unit tests are not distributed with the PyPI archive.
               (method git-fetch)
@@ -2446,21 +2460,20 @@ libxml2 and libxslt.")
               (file-name (git-file-name name version))
               (sha256
                (base32
-                "03bz5mp45y4shmlc1gxq1h69vjx60z1acg9cy4kq7fczgx8qg9jw"))))
+                "0rsa75x86gdjalvy4riq7613szb616hff80crx006chyppzdkxmq"))))
     (build-system python-build-system)
     (arguments
      '(#:phases
        (modify-phases %standard-phases
          (replace 'check
-           (lambda* (#:key (tests? #t) #:allow-other-keys)
+           (lambda* (#:key tests? #:allow-other-keys)
              (if tests?
-                 (begin
-                   (setenv "PYTHONPATH"
-                           (string-append "./build/lib:"
-                                          (getenv "PYTHONPATH")))
-                   (invoke "python" "-m" "unittest" "-v"))
-                 (format #t "test suite not run~%"))
-             #t)))))
+                 ;; Disable test_export_remote__issue_187, which is known to
+                 ;; fail (see:
+                 ;; https://github.com/sissaschool/xmlschema/issues/206).
+                 (invoke "python" "-m" "unittest" "-v"
+                         "-k" "not test_export_remote__issue_187")
+                 (format #t "test suite not run~%")))))))
     (native-inputs
      `(("python-lxml" ,python-lxml)))   ;for tests
     (propagated-inputs

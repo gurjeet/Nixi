@@ -8,12 +8,14 @@
 ;;; Copyright © 2018 Tobias Geerinckx-Rice <me@tobias.gr>
 ;;; Copyright © 2018 Arun Isaac <arunisaac@systemreboot.net>
 ;;; Copyright © 2018, 2019 Ricardo Wurmus <rekado@elephly.net>
-;;; Copyright © 2018 Maxim Cournoyer <maxim.cournoyer@gmail.com>
+;;; Copyright © 2018, 2020 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;; Copyright © 2018, 2020 Efraim Flashner <efraim@flashner.co.il>
 ;;; Copyright © 2019 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2019, 2020 Giacomo Leidi <goodoldpaul@autistici.org>
 ;;; Copyright © 2020 Marius Bakke <mbakke@fastmail.com>
 ;;; Copyright © 2020 Jonathan Brielmaier <jonathan.brielmaier@web.de>
+;;; Copyright © 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
+;;; Copyright © 2021 Greg Hogan <code@greghogan.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -61,21 +63,17 @@
 (define-public boost
   (package
     (name "boost")
-    (version "1.72.0")
+    (version "1.75.0")
     (source (origin
               (method url-fetch)
               (uri (string-append "https://dl.bintray.com/boostorg/release/"
                                   version "/source/boost_"
                                   (version-with-underscores version) ".tar.bz2"))
-              (patches
-               (list (boost-patch
-                      ;; 1.72.0 was released with a faulty coroutine submodule:
-                      ;; <https://github.com/boostorg/coroutine/issues/46>.
-                      "0001-revert-cease-dependence-on-range.patch" version
-                      "1zcqxzh56m1s635wqwk15j3zcs2gmjvjy2f0hid7i78s4pgm0yfs")))
+              ; Should be included in next Boost update
+              (patches (search-patches "boost-fix-transitive-linking.patch"))
               (sha256
                (base32
-                "08h7cv61fd0lzb4z50xanfqn0pdgvizjrpd1kcdgj725pisb5jar"))))
+                "1js9zpij58l60kx46s3lxdp5207igppjnhqigwhbpdvd04gb6gcm"))))
     (build-system gnu-build-system)
     (inputs `(("icu4c" ,icu4c)
               ("zlib" ,zlib)))
@@ -83,7 +81,7 @@
      `(("perl" ,perl)
        ,@(if (%current-target-system)
              '()
-             `(("python" ,python-wrapper)))
+             `(("python" ,python-minimal-wrapper)))
        ("tcsh" ,tcsh)))
     (arguments
      `(#:imported-modules ((guix build python-build-system)
@@ -124,8 +122,7 @@
                    (out (assoc-ref outputs "out")))
                (substitute* '("libs/config/configure"
                               "libs/spirit/classic/phoenix/test/runtest.sh"
-                              "tools/build/src/engine/execunix.cpp"
-                              "tools/build/src/engine/Jambase")
+                              "tools/build/src/engine/execunix.cpp")
                  (("/bin/sh") (which "sh")))
 
                (setenv "SHELL" (which "sh"))
@@ -140,13 +137,9 @@
                      '())
 
                ;; Change an #ifdef __MACH__ that really targets macOS.
-               ;; TODO: Inline this on the next rebuild cycle.
-               ,@(if (hurd-target?)
-                     '((substitute* "boost/test/utils/timer.hpp"
-                         (("defined\\(__MACH__\\)")
-                          "(defined __MACH__ && !defined __GNU__)"))
-                       #t)
-                     '())
+               (substitute* "boost/test/utils/timer.hpp"
+                 (("defined\\(__MACH__\\)")
+                  "(defined __MACH__ && !defined __GNU__)"))
 
                (invoke "./bootstrap.sh"
                        (string-append "--prefix=" out)
@@ -198,14 +191,6 @@
 across a broad spectrum of applications.")
     (license (license:x11-style "https://www.boost.org/LICENSE_1_0.txt"
                                 "Some components have other similar licences."))))
-
-(define-public boost-with-python2
-  (package
-    (inherit boost)
-    (name "boost-python2")
-    (native-inputs
-     `(("python" ,python-2)
-       ,@(alist-delete "python" (package-native-inputs boost))))))
 
 (define-public boost-with-python3
   (deprecated-package "boost-with-python3" boost))

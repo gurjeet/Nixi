@@ -44,7 +44,7 @@
 ;;; Copyright © 2019 David Wilson <david@daviwil.com>
 ;;; Copyright © 2019, 2020 Raghav Gururajan <raghavgururajan@disroot.org>
 ;;; Copyright © 2019, 2020 Jonathan Brielmaier <jonathan.brielmaier@web.de>
-;;; Copyright © 2019, 2020 Leo Prikler <leo.prikler@student.tugraz.at>
+;;; Copyright © 2019, 2020, 2021 Leo Prikler <leo.prikler@student.tugraz.at>
 ;;; Copyright © 2020 Oleg Pykhalov <go.wigust@gmail.com>
 ;;; Copyright © 2020 Pierre Neidhardt <mail@ambrevar.xyz>
 ;;; Copyright © 2020 raingloom <raingloom@riseup.net>
@@ -794,6 +794,65 @@ patterns.")
       license:lgpl2.1+
       license:gpl2+))))
 
+(define-public gnome-recipes
+  (package
+    (name "gnome-recipes")
+    (version "2.0.4")
+    (source (origin
+              (method git-fetch)
+              (uri (git-reference
+                    (url "https://gitlab.gnome.org/GNOME/recipes")
+                    (commit version)))
+              (file-name (git-file-name name version))
+              (sha256
+               (base32
+                "1h049mzqnlcfqwrhmzbq3pzzdglvy2bn9fj1p8wql7a60pn8sr32"))))
+    (build-system meson-build-system)
+    (arguments
+     `(#:glib-or-gtk? #t
+       #:phases
+       (modify-phases %standard-phases
+         (add-after 'unpack 'skip-gtk-update-icon-cache
+           (lambda _
+             (substitute* "meson_post_install.py"
+               (("gtk-update-icon-cache") (which "true")))
+             #t))
+         (add-after 'unpack 'unpack-libgd
+           (lambda* (#:key inputs #:allow-other-keys)
+             (let ((libgd (assoc-ref inputs "libgd")))
+               (copy-recursively libgd "subprojects/libgd")
+               #t))))))
+    (inputs
+     `(("glib" ,glib)
+       ("gnome-autoar" ,gnome-autoar)
+       ("gnome-online-accounts:lib" ,gnome-online-accounts "lib")
+       ("gspell" ,gspell)
+       ("gtk+" ,gtk+)
+       ("json-glib" ,json-glib)
+       ("libcanberra" ,libcanberra)
+       ("libsoup" ,libsoup)
+       ("rest" ,rest)))
+    (native-inputs
+     `(("desktop-file-utils" ,desktop-file-utils) ; for update-desktop-database
+       ("gettext" ,gettext-minimal)
+       ("glib:bin" ,glib "bin")
+       ("itstool" ,itstool)
+       ("libgd"
+        ,(origin
+           (method git-fetch)
+           (uri (git-reference
+                 (url "https://gitlab.gnome.org/GNOME/libgd")
+                 (commit "c7c7ff4e05d3fe82854219091cf116cce6b19de0")))
+           (file-name (git-file-name "libgd" version))
+           (sha256
+            (base32 "16yld0ap7qj1n96h4f2sqkjmibg7xx5xwkqxdfzam2nmyfdlrrrs"))))
+       ("pkg-config" ,pkg-config)))
+    (home-page "https://wiki.gnome.org/Apps/Recipes")
+    (synopsis "Discover recipes for preparing food")
+    (description "GNOME Recipes helps you discover what to cook today,
+tomorrow, the rest of the week and for special occasions.")
+    (license license:gpl3+)))
+
 (define-public gnome-photos
   (package
     (name "gnome-photos")
@@ -895,7 +954,7 @@ cloud integration is offered through GNOME Online Accounts.")
                  `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH")))
                  `("GST_PLUGIN_SYSTEM_PATH" = (,(getenv "GST_PLUGIN_SYSTEM_PATH")))
                  `("GRL_PLUGIN_PATH" = (,(getenv "GRL_PLUGIN_PATH")))
-                 `("PYTHONPATH" = (,(getenv "PYTHONPATH") ,pylib))))
+                 `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH") ,pylib))))
              #t)))))
     (native-inputs
      `(("desktop-file-utils" ,desktop-file-utils)
@@ -2680,7 +2739,7 @@ and how they are displayed (View).")
                                            (package-version python))
                                          "/site-packages")))
                (wrap-program prog
-                 `("PYTHONPATH" = (,(getenv "PYTHONPATH") ,pylib))
+                 `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH") ,pylib))
                  `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH"))))
                #t))))))
     (native-inputs
@@ -2956,19 +3015,31 @@ configuring CUPS.")
 (define-public libnotify
   (package
     (name "libnotify")
-    (version "0.7.7")
+    (version "0.7.9")
     (source
      (origin
-      (method url-fetch)
-      (uri (string-append "mirror://gnome/sources/" name "/"
-                          (version-major+minor version)  "/"
-                          name "-" version ".tar.xz"))
-      (sha256
-       (base32
-        "017wgq9n00hx39n0hm784zn18hl721hbaijda868cm96bcqwxd4w"))))
-    (build-system gnu-build-system)
+       (method url-fetch)
+       (uri (string-append "mirror://gnome/sources/" name "/"
+                           (version-major+minor version)  "/"
+                           name "-" version ".tar.xz"))
+       (sha256
+        (base32
+         "0qa7cx6ra5hwqnxw95b9svgjg5q6ynm8y843iqjszxvds5z53h36"))))
+    (build-system meson-build-system)
     (arguments
-     `(#:configure-flags '("--disable-static")))
+     `(#:phases
+       (modify-phases %standard-phases
+         (add-after 'unpack 'fix-docbook
+           (lambda* (#:key inputs #:allow-other-keys)
+             ;; Don't attempt to download XSL schema.
+             (substitute* "meson.build"
+               (("http://docbook.sourceforge.net/release/xsl-ns/current\
+/manpages/docbook.xsl")
+                (string-append (assoc-ref inputs "docbook-xsl")
+                               "/xml/xsl/docbook-xsl-"
+                               ,(package-version docbook-xsl)
+                               "/manpages/docbook.xsl")))
+             #t)))))
     (propagated-inputs
      `(;; In Requires of libnotify.pc.
        ("gdk-pixbuf" ,gdk-pixbuf)
@@ -2977,9 +3048,14 @@ configuring CUPS.")
      `(("gtk+" ,gtk+)
        ("libpng" ,libpng)))
     (native-inputs
-      `(("pkg-config" ,pkg-config)
-        ("glib" ,glib "bin")
-        ("gobject-introspection" ,gobject-introspection)))
+     `(("pkg-config" ,pkg-config)
+       ("glib" ,glib "bin")
+       ("gobject-introspection" ,gobject-introspection)
+
+       ;; For the documentation.
+       ("gtk-doc" ,gtk-doc)
+       ("xsltproc" ,libxslt)
+       ("docbook-xsl" ,docbook-xsl)))
     (home-page "https://developer-next.gnome.org/libnotify/")
     (synopsis
      "GNOME desktop notification library")
@@ -3206,75 +3282,7 @@ dealing with different structured file formats.")
 (define-public librsvg
   (package
     (name "librsvg")
-    (version "2.40.21")
-    (source (origin
-              (method url-fetch)
-              (uri (string-append "mirror://gnome/sources/" name "/"
-                                  (version-major+minor version)  "/"
-                                  name "-" version ".tar.xz"))
-              (sha256
-               (base32
-                "1fljkag2gr7c4k5mn798lgf9903xslz8h51bgvl89nnay42qjqpp"))))
-    (build-system gnu-build-system)
-    (arguments
-     `(#:configure-flags
-       (list "--disable-static"
-             "--enable-vala") ; needed for e.g. gnome-mines
-       #:phases
-       (modify-phases %standard-phases
-         (add-before 'configure 'pre-configure
-           (lambda* (#:key inputs #:allow-other-keys)
-             (substitute* "gdk-pixbuf-loader/Makefile.in"
-               ;; By default the gdk-pixbuf loader is installed under
-               ;; gdk-pixbuf's prefix.  Work around that.
-               (("gdk_pixbuf_moduledir = .*$")
-                (string-append "gdk_pixbuf_moduledir = "
-                               "$(prefix)/lib/gdk-pixbuf-2.0/2.10.0/"
-                                "loaders\n"))
-               ;; Drop the 'loaders.cache' file, it's in gdk-pixbuf+svg.
-               (("gdk_pixbuf_cache_file = .*$")
-                "gdk_pixbuf_cache_file = $(TMPDIR)/loaders.cache\n"))
-             #t))
-         (add-before 'check 'remove-failing-tests
-           (lambda _
-             (with-directory-excursion "tests/fixtures/reftests"
-               (for-each delete-file
-                         '(;; This test fails on i686:
-                           "svg1.1/masking-path-04-b.svg"
-                           ;; This test fails on armhf:
-                           "svg1.1/masking-mask-01-b.svg"
-                           ;; This test fails on aarch64:
-                           "bugs/777834-empty-text-children.svg")))
-             #t)))))
-    (native-inputs
-     `(("pkg-config" ,pkg-config)
-       ("vala" ,vala)
-       ("glib" ,glib "bin")                               ; glib-mkenums, etc.
-       ("gobject-introspection" ,gobject-introspection))) ; g-ir-compiler, etc.
-    (inputs
-     `(;; XXX: 1.44 causes some test failures, so we stick with 1.42 for
-       ;; this ancient version of librsvg.
-       ("pango" ,pango-1.42)
-       ("libcroco" ,libcroco)
-       ("bzip2" ,bzip2)
-       ("libgsf" ,libgsf)
-       ("libxml2" ,libxml2)))
-    (propagated-inputs
-     ;; librsvg-2.0.pc refers to all of that.
-     `(("cairo" ,cairo)
-       ("gdk-pixbuf" ,gdk-pixbuf)
-       ("glib" ,glib)))
-    (home-page "https://wiki.gnome.org/LibRsvg")
-    (synopsis "Render SVG files using Cairo")
-    (description
-     "Librsvg is a C library to render SVG files using the Cairo 2D graphics
-library.")
-    (license license:lgpl2.0+)))
-
-(define-public librsvg-next
-  (package
-    (name "librsvg")
-    (version "2.50.2")
+    (version "2.50.3")
     (source (origin
               (method url-fetch)
               (uri (string-append "mirror://gnome/sources/librsvg/"
@@ -3282,11 +3290,10 @@ library.")
                                   "librsvg-" version ".tar.xz"))
               (sha256
                (base32
-                "1lsnl08b5pjf01q3agixjd53islw5rqkc38r31rlmm2crrqz44b2"))
+                "0n79i4wj9hm0d3bbn4xvknq5ylhqs16pvhaqr1rxspx9wfc8lad4"))
               (modules '((guix build utils)))
               (snippet
-               '(begin (delete-file-recursively "vendor")
-                       #t))))
+               '(begin (delete-file-recursively "vendor")))))
     (build-system cargo-build-system)
     (outputs '("out" "doc"))
     (arguments
@@ -3337,7 +3344,7 @@ library.")
         ("rust-chrono" ,rust-chrono-0.4)
         ("rust-criterion" ,rust-criterion-0.3)
         ("rust-float-cmp" ,rust-float-cmp-0.8)
-        ("rust-lopdf" ,rust-lopdf-0.25)
+        ("rust-lopdf" ,rust-lopdf-0.26)
         ("rust-png" ,rust-png-0.16)
         ("rust-predicates" ,rust-predicates-1)
         ("rust-tempfile" ,rust-tempfile-3))
@@ -3349,8 +3356,7 @@ library.")
                (substitute* "rsvg-docs.xml"
                  (("http://www.oasis-open.org/docbook/xml/4.3/")
                   (string-append (assoc-ref inputs "docbook-xml")
-                                 "/xml/dtd/docbook/"))))
-             #t))
+                                 "/xml/dtd/docbook/"))))))
          (add-after 'unpack 'prepare-for-build
            (lambda _
              ;; In lieu of #:make-flags
@@ -3358,8 +3364,7 @@ library.")
              ;; Something about the build environment resists building
              ;; successfully with the '--locked' flag.
              (substitute* '("Makefile.am" "Makefile.in")
-               (("--locked") ""))
-             #t))
+               (("--locked") ""))))
          (add-before 'configure 'pre-configure
            (lambda _
              (substitute* "gdk-pixbuf-loader/Makefile.in"
@@ -3371,8 +3376,7 @@ library.")
                                "loaders\n"))
                ;; Drop the 'loaders.cache' file, it's in gdk-pixbuf+svg.
                (("gdk_pixbuf_cache_file = .*$")
-                "gdk_pixbuf_cache_file = $(TMPDIR)/loaders.cache\n"))
-             #t))
+                "gdk_pixbuf_cache_file = $(TMPDIR)/loaders.cache\n"))))
          (add-after 'configure 'gnu-configure
            (lambda* (#:key inputs native-inputs outputs #:allow-other-keys)
              ((assoc-ref gnu:%standard-phases 'configure)
@@ -3389,8 +3393,7 @@ library.")
            (lambda* (#:key vendor-dir #:allow-other-keys)
              ;; Don't keep the whole tarball in the vendor directory
              (delete-file-recursively
-              (string-append vendor-dir "/" ,name "-" ,version ".tar.xz"))
-             #t))
+              (string-append vendor-dir "/" ,name "-" ,version ".tar.xz"))))
          (replace 'build
            (assoc-ref gnu:%standard-phases 'build))
          (add-before 'check 'ignore-failing-tests
@@ -3416,8 +3419,7 @@ library.")
                (("fn multiple_input_files_not_allowed_for_png_output" all)
                 (string-append "#[ignore] " all))
                (("fn stylesheet_option_error" all)
-                (string-append "#[ignore] " all)))
-             #t))
+                (string-append "#[ignore] " all)))))
          (replace 'check
            (lambda* args
              ((assoc-ref gnu:%standard-phases 'check)
@@ -4247,15 +4249,15 @@ passwords in the GNOME keyring.")
 (define-public vala
   (package
     (name "vala")
-    (version "0.46.5")
+    (version "0.50.3")
     (source (origin
               (method url-fetch)
-              (uri (string-append "mirror://gnome/sources/" name "/"
+              (uri (string-append "mirror://gnome/sources/vala/"
                                   (version-major+minor version) "/"
-                                  name "-" version ".tar.xz"))
+                                  "vala-" version ".tar.xz"))
               (sha256
                (base32
-                "07fv895sp9wq74b20qig7hic0r4ynrr5pfaqba02r44xb794fy0s"))))
+                "1nx5xjarpkl9hgy0qbqfczx7d7clh5g1r8xr5xp8b97c5fsc2rb1"))))
     (build-system gnu-build-system)
     (arguments
      '(#:phases
@@ -4263,12 +4265,10 @@ passwords in the GNOME keyring.")
          (add-before 'check 'pre-check
                      (lambda _
                        (setenv "CC" "gcc")
-                       (substitute* "valadoc/tests/testrunner.sh"
+                       (substitute* "valadoc/tests/libvaladoc\
+/tests-extra-environment.sh"
                          (("export PKG_CONFIG_PATH=" m)
-                          (string-append m "$PKG_CONFIG_PATH:")))
-                       ;; For missing '/etc/machine-id'.
-                       (setenv "DBUS_FATAL_WARNINGS" "0")
-                       #t)))))
+                          (string-append m "$PKG_CONFIG_PATH:"))))))))
     (native-inputs
      `(("pkg-config" ,pkg-config)
        ("flex" ,flex)
@@ -4288,19 +4288,6 @@ language features to GNOME developers without imposing any additional runtime
 requirements and without using a different ABI compared to applications and
 libraries written in C.")
     (license license:lgpl2.1+)))
-
-(define-public vala-0.50
-  (package
-    (inherit vala)
-    (version "0.50.2")
-    (source (origin
-              (method url-fetch)
-              (uri (string-append "mirror://gnome/sources/vala/"
-                                  (version-major+minor version) "/"
-                                  "vala-" version ".tar.xz"))
-              (sha256
-               (base32
-                "1nnf0x6vk0a9p2y6z7jwjfvmlxh3qhj581v381r0y1sxsv35s39c"))))))
 
 (define-public vte
   (package
@@ -6167,12 +6154,12 @@ which can read a large number of file formats.")
                  (gi-typelib-path   (getenv "GI_TYPELIB_PATH"))
                  (gst-plugin-path   (getenv "GST_PLUGIN_SYSTEM_PATH"))
                  (grl-plugin-path   (getenv "GRL_PLUGIN_PATH"))
-                 (python-path       (getenv "PYTHONPATH")))
+                 (python-path       (getenv "GUIX_PYTHONPATH")))
              (wrap-program (string-append out "/bin/rhythmbox")
                `("GI_TYPELIB_PATH"        ":" prefix (,gi-typelib-path))
                `("GST_PLUGIN_SYSTEM_PATH" ":" prefix (,gst-plugin-path))
                `("GRL_PLUGIN_PATH"        ":" prefix (,grl-plugin-path))
-               `("PYTHONPATH"             ":" prefix (,python-path))))
+               `("GUIX_PYTHONPATH"             ":" prefix (,python-path))))
            #t)))))
    (propagated-inputs
     `(("dconf" ,dconf)))
@@ -6275,7 +6262,7 @@ supports playlists, song ratings, and any codecs installed through gstreamer.")
       ("libexif" ,libexif)
       ("libpeas" ,libpeas)
       ("libjpeg" ,libjpeg-turbo)
-      ("librsvg" ,librsvg-next)
+      ("librsvg" ,librsvg)
       ("gsettings-desktop-schemas" ,gsettings-desktop-schemas)
       ("gtk+" ,gtk+)))
    (home-page "https://wiki.gnome.org/Apps/EyeOfGnome")
@@ -6540,7 +6527,7 @@ almost all of them.")
                            ":")))
                (wrap-program (string-append out "/bin/eolie")
                  `("LD_LIBRARY_PATH" ":" prefix (,path))
-                 `("PYTHONPATH" ":" prefix (,(getenv "PYTHONPATH")))
+                 `("GUIX_PYTHONPATH" ":" prefix (,(getenv "GUIX_PYTHONPATH")))
                  `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH")))))
              #t)))))
     (native-inputs
@@ -6684,7 +6671,7 @@ principles are simplicity and standards compliance.")
             (let ((prog (string-append (assoc-ref outputs "out")
                                        "/bin/d-feet")))
               (wrap-program prog
-                `("PYTHONPATH" = (,(getenv "PYTHONPATH")))
+                `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH")))
                 `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH"))))
               #t))))))
     (native-inputs
@@ -7143,11 +7130,11 @@ javascript engine and the GObject introspection framework.")
              (let ((out               (assoc-ref outputs "out"))
                    (gtksourceview     (assoc-ref inputs "gtksourceview"))
                    (gi-typelib-path   (getenv "GI_TYPELIB_PATH"))
-                   (python-path       (getenv "PYTHONPATH")))
+                   (python-path       (getenv "GUIX_PYTHONPATH")))
                (wrap-program (string-append out "/bin/gedit")
                  ;; For plugins.
                  `("GI_TYPELIB_PATH" ":" prefix (,gi-typelib-path))
-                 `("PYTHONPATH" ":" prefix (,python-path))
+                 `("GUIX_PYTHONPATH" ":" prefix (,python-path))
                  ;; For language-specs.
                  `("XDG_DATA_DIRS" ":" prefix (,(string-append gtksourceview
                                                                "/share")))))
@@ -7508,12 +7495,12 @@ Evolution (hence the name), but is now used by other packages as well.")
          (add-after 'install 'wrap-programs
           (lambda* (#:key outputs #:allow-other-keys)
             (let* ((out (assoc-ref outputs "out"))
-                   (python-path (getenv "PYTHONPATH"))
+                   (python-path (getenv "GUIX_PYTHONPATH"))
                    (gi-typelib-path (getenv "GI_TYPELIB_PATH")))
               (for-each
                (lambda (prog)
                  (wrap-program prog
-                   `("PYTHONPATH"      ":" prefix (,python-path))
+                   `("GUIX_PYTHONPATH"      ":" prefix (,python-path))
                    `("GI_TYPELIB_PATH" ":" prefix (,gi-typelib-path))))
                (list (string-append out "/bin/caribou-preferences")
                      (string-append out "/libexec/antler-keyboard"))))
@@ -8415,7 +8402,7 @@ properties, screen resolution, and other GNOME parameters.")
            (lambda* (#:key inputs outputs #:allow-other-keys)
              (let ((out              (assoc-ref outputs "out"))
                    (gi-typelib-path  (getenv "GI_TYPELIB_PATH"))
-                   (python-path      (getenv "PYTHONPATH")))
+                   (python-path      (getenv "GUIX_PYTHONPATH")))
                (wrap-program (string-append out "/bin/gnome-shell")
                  `("GI_TYPELIB_PATH" ":" prefix (,gi-typelib-path))
                  ;; FIXME: gnome-shell loads these libraries with unqualified
@@ -8429,7 +8416,7 @@ properties, screen resolution, and other GNOME parameters.")
                (for-each
                 (lambda (prog)
                   (wrap-program (string-append out "/bin/" prog)
-                    `("PYTHONPATH"      ":" prefix (,python-path))
+                    `("GUIX_PYTHONPATH"      ":" prefix (,python-path))
                     `("GI_TYPELIB_PATH" ":" prefix (,gi-typelib-path))))
                 '("gnome-shell-extension-tool" "gnome-shell-perf-tool"))
                #t)))
@@ -9210,7 +9197,7 @@ specified duration and save it as a GIF encoded animated image file.")
                                            (package-version python))
                                          "/site-packages")))
                (wrap-program prog
-                 `("PYTHONPATH" = (,(getenv "PYTHONPATH") ,pylib))
+                 `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH") ,pylib))
                  `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH"))))
                #t))))))
     (native-inputs
@@ -9421,13 +9408,13 @@ desktop.  It supports multiple calendars, month, week and year view.")
                     (lambda* (#:key inputs outputs #:allow-other-keys)
                       (let ((out               (assoc-ref outputs "out"))
                             (gi-typelib-path   (getenv "GI_TYPELIB_PATH"))
-                            (python-path       (getenv "PYTHONPATH")))
+                            (python-path       (getenv "GUIX_PYTHONPATH")))
                         (wrap-program (string-append out "/bin/gnome-todo")
                           ;; XXX: gi plugins are broken.
                           ;; See https://bugzilla.gnome.org/show_bug.cgi?id=787212
                           ;; For plugins.
                           `("GI_TYPELIB_PATH" ":" prefix (,gi-typelib-path))
-                          `("PYTHONPATH" ":" prefix (,python-path))))
+                          `("GUIX_PYTHONPATH" ":" prefix (,python-path))))
                       #t)))))
     (native-inputs
      `(("gettext" ,gettext-minimal)
@@ -10030,8 +10017,8 @@ accessibility infrastructure.")
                    (,(getenv "GI_TYPELIB_PATH")))
                  `("GST_PLUGIN_SYSTEM_PATH" ":" prefix
                    (,(getenv "GST_PLUGIN_SYSTEM_PATH")))
-                 `("PYTHONPATH" ":" prefix
-                   (,(getenv "PYTHONPATH")))))
+                 `("GUIX_PYTHONPATH" ":" prefix
+                   (,(getenv "GUIX_PYTHONPATH")))))
              #t)))))
     (native-inputs
      `(("intltool" ,intltool)
@@ -10363,7 +10350,7 @@ apply fancy special effects and lets you share the fun with others.")
                                            (package-version python))
                                          "/site-packages")))
                (wrap-program prog
-                 `("PYTHONPATH" = (,(getenv "PYTHONPATH") ,pylib))
+                 `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH") ,pylib))
                  `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH"))))
                #t))))))
     (native-inputs
@@ -10783,7 +10770,7 @@ advanced image management tool")
                                           (package-version python))
                                         "/site-packages")))
               (wrap-program prog
-                `("PYTHONPATH" = (,(getenv "PYTHONPATH") ,pylib))
+                `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH") ,pylib))
                 `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH"))))
               #t)))
          (add-after 'wrap-program 'glib-or-gtk-wrap
@@ -11416,7 +11403,7 @@ and toolbars.")
                                            (package-version python))
                                          "/site-packages")))
                (wrap-program prog
-                 `("PYTHONPATH" = (,(getenv "PYTHONPATH") ,pylib))
+                 `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH") ,pylib))
                  `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH"))))
                #t))))))
     (native-inputs
@@ -11476,7 +11463,7 @@ GTK+.  It integrates well with the GNOME desktop environment.")
                     (pygo (string-append
                            (assoc-ref inputs "python-pygobject") site))
                     (python-wrap
-                     `("PYTHONPATH" = (,evdev ,pygo))))
+                     `("GUIX_PYTHONPATH" = (,evdev ,pygo))))
                (wrap-program (string-append out "/bin/" "ratbagctl")
                  python-wrap)
                #t))))))
@@ -11825,7 +11812,7 @@ integrated profiler via Sysprof, debugging support, and more.")
 (define-public komikku
   (package
     (name "komikku")
-    (version "0.25.1")
+    (version "0.26.0")
     (source
      (origin
        (method git-fetch)
@@ -11835,7 +11822,7 @@ integrated profiler via Sysprof, debugging support, and more.")
        (file-name (git-file-name name version))
        (sha256
         (base32
-         "03skci66y9qqiv4bqbbc0w6d6agilwmx95cw7sribj06zcykm7m3"))))
+         "1g5rhp3d97v0s8nk536vqpv6qd4gha4h27bfdkypcqa42h8wyxm2"))))
     (build-system meson-build-system)
     (arguments
      `(#:glib-or-gtk? #t
@@ -11858,7 +11845,7 @@ integrated profiler via Sysprof, debugging support, and more.")
             (let ((prog (string-append (assoc-ref outputs "out")
                                        "/bin/komikku")))
               (wrap-program prog
-                `("PYTHONPATH" = (,(getenv "PYTHONPATH")))
+                `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH")))
                 `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH"))))
               #t))))))
     (inputs

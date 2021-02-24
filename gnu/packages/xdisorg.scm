@@ -43,6 +43,7 @@
 ;;; Copyright © 2020 James Smith <jsubuntuxp@disroot.org>
 ;;; Copyright © 2020 B. Wilson <elaexuotee@wilsonb.com>
 ;;; Copyright © 2020 Zheng Junjie <873216071@qq.com>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -60,54 +61,55 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (gnu packages xdisorg)
-  #:use-module ((guix licenses) #:prefix license:)
-  #:use-module (guix packages)
-  #:use-module (guix download)
-  #:use-module (guix git-download)
-  #:use-module (guix hg-download)
-  #:use-module (guix utils)
   #:use-module (guix build-system cmake)
-  #:use-module (guix build-system gnu)
   #:use-module (guix build-system glib-or-gtk)
+  #:use-module (guix build-system gnu)
   #:use-module (guix build-system meson)
   #:use-module (guix build-system python)
   #:use-module (guix build-system scons)
-  #:use-module (gnu packages)
-  #:use-module (gnu packages documentation)
+  #:use-module (guix download)
+  #:use-module (guix git-download)
+  #:use-module (guix hg-download)
+  #:use-module ((guix licenses) #:prefix license:)
+  #:use-module (guix packages)
+  #:use-module (guix utils)
   #:use-module (gnu packages admin)
-  #:use-module (gnu packages base)
   #:use-module (gnu packages algebra)
   #:use-module (gnu packages autotools)
+  #:use-module (gnu packages base)
+  #:use-module (gnu packages bison)
   #:use-module (gnu packages check)
   #:use-module (gnu packages compression)
-  #:use-module (gnu packages image)
-  #:use-module (gnu packages pkg-config)
+  #:use-module (gnu packages documentation)
   #:use-module (gnu packages flex)
+  #:use-module (gnu packages fontutils)
   #:use-module (gnu packages freedesktop)
   #:use-module (gnu packages gawk)
   #:use-module (gnu packages gettext)
   #:use-module (gnu packages gl)
+  #:use-module (gnu packages gl)
   #:use-module (gnu packages glib)
   #:use-module (gnu packages gnome)
+  #:use-module (gnu packages gtk)
+  #:use-module (gnu packages guile)
   #:use-module (gnu packages haskell-xyz)
   #:use-module (gnu packages icu4c)
+  #:use-module (gnu packages image)
+  #:use-module (gnu packages linux)
+  #:use-module (gnu packages m4)
   #:use-module (gnu packages man)
   #:use-module (gnu packages maths)
-  #:use-module (gnu packages m4)
   #:use-module (gnu packages ncurses)
   #:use-module (gnu packages perl)
+  #:use-module (gnu packages pkg-config)
   #:use-module (gnu packages python)
   #:use-module (gnu packages python-xyz)
-  #:use-module (gnu packages linux)
-  #:use-module (gnu packages gl)
-  #:use-module (gnu packages guile)
-  #:use-module (gnu packages xml)
-  #:use-module (gnu packages gtk)
   #:use-module (gnu packages qt)
-  #:use-module (gnu packages xorg)
-  #:use-module (gnu packages fontutils)
-  #:use-module (gnu packages bison)
   #:use-module (gnu packages sphinx)
+  #:use-module (gnu packages tcl)
+  #:use-module (gnu packages xml)
+  #:use-module (gnu packages xorg)
+  #:use-module (gnu packages)
   #:use-module (ice-9 match))
 
 ;; packages outside the x.org system proper
@@ -358,14 +360,14 @@ avoiding password prompts when X11 forwarding has already been setup.")
 (define-public libxkbcommon
   (package
     (name "libxkbcommon")
-    (version "1.0.1")
+    (version "1.0.3")
     (source (origin
              (method url-fetch)
              (uri (string-append "https://xkbcommon.org/download/libxkbcommon-"
                                  version ".tar.xz"))
              (sha256
               (base32
-               "13bcdf2xpjxwbghas0cr448z89qqki2ssgfgswc257y9859v4s5b"))))
+               "0lmwglj16anhpaq0h830xsl1ivknv75i4lir9bk88aq73s2jy852"))))
     (build-system meson-build-system)
     (inputs
      `(("libx11" ,libx11)
@@ -508,7 +510,7 @@ following the mouse.")
 (define-public pixman
   (package
     (name "pixman")
-    (version "0.38.4")
+    (version "0.40.0")
     (source
      (origin
        (method url-fetch)
@@ -517,13 +519,17 @@ following the mouse.")
          "https://www.cairographics.org/releases/pixman-"
          version ".tar.gz"))
        (sha256
-        (base32 "1ryxzdf048x7wsx4dlvrr1p00gzwfs7lybnhgc7ygbj0dvyxcrns"))
+        (base32 "1z13n96m7x91j25qq9wlkxsbq04wfwjhw66ir17frna06zn0s83d"))
        (patches
         (search-patches
          "pixman-CVE-2016-5296.patch"))))
     (build-system gnu-build-system)
     (arguments
-     '(#:configure-flags '("--disable-static")))
+     `(#:configure-flags
+       (list
+        "--disable-static"
+        "--enable-timers"
+        "--enable-gnuplot")))
     (native-inputs
      `(("pkg-config" ,pkg-config)))
     (inputs
@@ -534,12 +540,12 @@ following the mouse.")
 manipulation, providing features such as image compositing and trapezoid
 rasterisation.")
     (home-page "http://www.pixman.org/")
-    (license license:x11)))
+    (license license:expat)))
 
 (define-public libdrm
   (package
     (name "libdrm")
-    (version "2.4.102")
+    (version "2.4.104")
     (source (origin
               (method url-fetch)
               (uri (string-append
@@ -547,7 +553,7 @@ rasterisation.")
                     version ".tar.xz"))
               (sha256
                (base32
-                "0nx0bd9dhymdsd99v4ifib77yjirkvkxf5hzdkbr7qr8dhrzkjwb"))))
+                "1jqvx9c23hgwhq109zqj6vg3ng40pcvh3r1k2fn1a424qasxhsnn"))))
     (build-system meson-build-system)
     (arguments
      `(#:configure-flags
@@ -954,11 +960,30 @@ transparent text on your screen.")
                (base32
                 "1wl2vc5alisiwyk8m07y1ryq8w3ll9ym83j27g4apm4ixjl8d6x2"))))
     (build-system gnu-build-system)
+    (arguments
+     `(#:phases
+       (modify-phases %standard-phases
+         (add-after 'unpack 'sanitise-shebang
+           ;; This wish script uses a strange double shebang that escapes our
+           ;; patch-shebangs phase.  Assume that it's unnecessary & replace it.
+           (lambda _
+             (substitute* "xbindkeys_show"
+               (("^#!.*|^exec wish.*") "")
+               (("^# \\\\") (string-append "#!" (which "wish"))))
+             #t))
+         (add-after 'unpack 'patch-references
+           (lambda* (#:key outputs #:allow-other-keys)
+             (let ((out (assoc-ref outputs "out")))
+               (substitute* "xbindkeys_show"
+                 (("\"(xbindkeys)\"" _ command)
+                  (format #f "\"~a/bin/~a\"" out command)))
+               #t))))))
     (native-inputs
      `(("pkg-config" ,pkg-config)))
     (inputs
-     `(("libx11" ,libx11)
-       ("guile" ,guile-2.2)))
+     `(("guile" ,guile-2.2)
+       ("libx11" ,libx11)
+       ("tk" ,tk)))
     (home-page "https://www.nongnu.org/xbindkeys/")
     (synopsis "Associate a combination of keys with a shell command")
     (description
@@ -1244,15 +1269,12 @@ the X.Org X Server version 1.7 and later (X11R7.5 or later).")
          (add-after 'split-outputs 'wrap
            (lambda* (#:key inputs outputs #:allow-other-keys)
              (let* ((gtk (assoc-ref outputs "gtk"))
-                    (python-version
-                     (@ (guix build python-build-system) python-version))
-                    (python (assoc-ref inputs "python"))
-                    (sitedir (string-append gtk "/lib/python"
-                                            (python-version python)
-                                            "/site-packages")))
+                    (site-packages (@ (guix build python-build-system)
+                                      site-packages))
+                    (site (site-packages inputs outputs)))
                (wrap-program (string-append gtk "/bin/redshift-gtk")
-                 `("PYTHONPATH" ":" prefix
-                   (,(string-append sitedir ":" (getenv "PYTHONPATH"))))
+                 `("GUIX_PYTHONPATH" ":" prefix
+                   (,(string-append site ":" (getenv "GUIX_PYTHONPATH"))))
                  `("GI_TYPELIB_PATH" ":" prefix (,(getenv "GI_TYPELIB_PATH"))))
                #t))))))
     (outputs '("out" "gtk"))

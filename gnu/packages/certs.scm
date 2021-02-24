@@ -4,6 +4,8 @@
 ;;; Copyright © 2016, 2017 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2017 Leo Famulari <leo@famulari.name>
 ;;; Copyright © 2017, 2018 Tobias Geerinckx-Rice <me@tobias.gr>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
+;;; Copyright © 2021 Efraim Flashner <efraim@flashner.co.il>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -23,120 +25,82 @@
 (define-module (gnu packages certs)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (guix packages)
+  #:use-module (guix utils)
   #:use-module (guix download)
   #:use-module (guix build-system gnu)
   #:use-module (guix build-system trivial)
   #:use-module (gnu packages)
-  #:use-module (gnu packages python)
+  #:use-module (gnu packages nss)
   #:use-module (gnu packages perl)
   #:use-module (gnu packages tls))
 
 (define certdata2pem
-  (package
-    (name "certdata2pem")
-    (version "2013")
-    (source
-     (origin
-      (method url-fetch)
-        (uri
-          "http://pkgs.fedoraproject.org/cgit/ca-certificates.git/plain/certdata2pem.py?id=053dde8a2f5901e97028a58bf54e7d0ef8095a54")
-        (file-name "certdata2pem.py")
-        (sha256
-          (base32
-            "0zscrm41gnsf14zvlkxhy00h3dmgidyz645ldpda3y3vabnwv8dx"))))
-   (build-system trivial-build-system)
-   (inputs
-     `(("python" ,python-2)))
-   (arguments
-    `(#:modules ((guix build utils))
-      #:builder
-        (begin
-          (use-modules (guix build utils))
-          (let ((bin (string-append %output "/bin")))
-            (copy-file (assoc-ref %build-inputs "source") "certdata2pem.py")
-            (chmod "certdata2pem.py" #o555)
-            (substitute* "certdata2pem.py"
-              (("/usr/bin/python")
-               (string-append (assoc-ref %build-inputs "python")
-                              "/bin/python"))
-              ;; Use the file extension .pem instead of .crt.
-              (("crt") "pem"))
-            (mkdir-p bin)
-            (copy-file "certdata2pem.py"
-                       (string-append bin "/certdata2pem.py"))
-            #t))))
-   (synopsis "Python script to extract .pem data from certificate collection")
-   (description
-    "certdata2pem.py is a Python script to transform X.509 certificate
-\"source code\" as contained, for example, in the Mozilla sources, into
-.pem formatted certificates.")
-   (license license:gpl2+)
-   (home-page "http://pkgs.fedoraproject.org/cgit/ca-certificates.git/")))
+  (let ((revision "1")
+        (commit "4c576f350f44186d439179f63d5be19f710a73f5"))
+    (package
+      (name "certdata2pem")
+      (version "0.0.0")                   ;no version
+      (source (origin
+                (method url-fetch)
+                (uri (string-append
+                      "https://raw.githubusercontent.com/sabotage-linux/sabotage/"
+                      commit "/KEEP/certdata2pem.c"))
+                (sha256
+                 (base32
+                  "1rywp29q4l1cs2baplkbcravxqs4kw2cys4yifhfznbc210pskq6"))))
+      (build-system gnu-build-system)
+      (arguments
+       `(#:phases (modify-phases %standard-phases
+                    (delete 'configure)
+                    (replace 'build
+                      (lambda _
+                        (invoke ,(cc-for-target) "certdata2pem.c"
+                                "-o" "certdata2pem")))
+                    (delete 'check)     ;no test suite
+                    (replace 'install
+                      (lambda* (#:key outputs #:allow-other-keys)
+                        (let ((out (assoc-ref outputs "out")))
+                          (install-file "certdata2pem"
+                                        (string-append out "/bin"))))))))
+      (home-page "https://github.com/sabotage-linux/")
+      (synopsis "Utility to split TLS certificates data into multiple PEM files")
+      (description "This is a C version of the certdata2pem Python utility
+that was originally contributed to Debian.")
+      (license license:isc))))
 
 (define-public nss-certs
   (package
     (name "nss-certs")
-    (version "3.57")
-    (source (origin
-              (method url-fetch)
-              (uri (let ((version-with-underscores
-                          (string-join (string-split version #\.) "_")))
-                     (string-append
-                      "https://ftp.mozilla.org/pub/mozilla.org/security/nss/"
-                      "releases/NSS_" version-with-underscores "_RTM/src/"
-                      "nss-" version ".tar.gz")))
-              (sha256
-               (base32
-                "10n3pncg6k81ikjz12la147rppwqn57bkrdl9gb820w6pq0nra2m"))))
+    (version (package-version nss))
+    (source (package-source nss))
     (build-system gnu-build-system)
     (outputs '("out"))
     (native-inputs
      `(("certdata2pem" ,certdata2pem)
-       ("openssl" ,openssl)
-       ("perl" ,perl)))                           ;for OpenSSL's 'c_rehash'
+       ("openssl" ,openssl)))
     (inputs '())
     (propagated-inputs '())
     (arguments
      `(#:modules ((guix build gnu-build-system)
                   (guix build utils)
                   (rnrs io ports)
-                  (srfi srfi-26)
-                  (ice-9 regex))
+                  (srfi srfi-26))
        #:phases
        (modify-phases
            (map (cut assq <> %standard-phases)
                 '(set-paths install-locale unpack))
          (add-after 'unpack 'install
            (lambda _
-             (let ((certsdir (string-append %output "/etc/ssl/certs/"))
-                   (trusted-rx (make-regexp "^# openssl-trust=[a-zA-Z]"
-                                            regexp/newline)))
-
-               (define (maybe-install-cert file)
-                 (let ((cert (call-with-input-file file get-string-all)))
-                   (when (regexp-exec trusted-rx cert)
-                     (call-with-output-file
-                         (string-append certsdir file)
-                       (cut display cert <>)))))
-
-               (mkdir-p certsdir)
-               (with-directory-excursion "nss/lib/ckfw/builtins/"
-                 ;; extract single certificates from blob
-                 (invoke "certdata2pem.py" "certdata.txt")
-                 ;; copy selected .pem files into the output
-                 (for-each maybe-install-cert
-                           (find-files "." ".*\\.pem")))
-
-               (with-directory-excursion certsdir
-                 ;; create symbolic links for and by openssl
-                 ;; Strangely, the call (system* "c_rehash" certsdir)
-                 ;; from inside the build dir fails with
-                 ;; "Usage error; try -help."
-                 ;; This looks like a bug in openssl-1.0.2, but we can also
-                 ;; switch into the target directory.
-                 (invoke "c_rehash" "."))
-               #t))))))
-
+             (let ((certsdir (string-append %output "/etc/ssl/certs/")))
+               (with-directory-excursion "lib/ckfw/builtins/"
+                 (unless (file-exists? "blacklist.txt")
+                   (call-with-output-file "blacklist.txt" (const #t)))
+                 ;; Extract selected single certificates from blob.
+                 (invoke "certdata2pem")
+                 ;; Copy .crt files into the output.
+                 (for-each (cut install-file <> certsdir)
+                           (find-files "." ".*\\.crt$")))
+               (invoke "openssl" "rehash" certsdir)))))))
     (synopsis "CA certificates from Mozilla")
     (description
      "This package provides certificates for Certification Authorities (CA)

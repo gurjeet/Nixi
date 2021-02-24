@@ -1,5 +1,5 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2013 Nikita Karetnikov <nikita@karetnikov.org>
 ;;; Copyright © 2014, 2016 Alex Kost <alezost@gmail.com>
 ;;; Copyright © 2015 Mark H Weaver <mhw@netris.org>
@@ -106,6 +106,8 @@
             manifest-matching-entries
             manifest-search-paths
             check-for-collisions
+
+            manifest->code
 
             manifest-transaction
             manifest-transaction?
@@ -666,6 +668,88 @@ including the search path specification for $PATH."
    (cons $PATH
          (append-map manifest-entry-search-paths
                      (manifest-entries manifest)))))
+
+(define* (manifest->code manifest
+                         #:key (entry-package-version (const "")))
+  "Return an sexp representing code to build an approximate version of
+MANIFEST; the code is wrapped in a top-level 'begin' form.  Call
+ENTRY-PACKAGE-VERSION to determine the version number to use in the spec for a
+given entry; it can be set to 'manifest-entry-version' for fully-specified
+version numbers, or to some other procedure to disambiguate versions for
+packages for which several versions are available."
+  (define (entry-transformations entry)
+    ;; Return the transformations that apply to ENTRY.
+    (assoc-ref (manifest-entry-properties entry) 'transformations))
+
+  (define transformation-procedures
+    ;; List of transformation options/procedure name pairs.
+    (let loop ((entries (manifest-entries manifest))
+               (counter 1)
+               (result  '()))
+      (match entries
+        (() result)
+        ((entry . tail)
+         (match (entry-transformations entry)
+           (#f
+            (loop tail counter result))
+           (options
+            (if (assoc-ref result options)
+                (loop tail counter result)
+                (loop tail (+ 1 counter)
+                      (alist-cons options
+                                  (string->symbol
+                                   (format #f "transform~a" counter))
+                                  result)))))))))
+
+  (define (qualified-name entry)
+    ;; Return the name of ENTRY possibly with "@" followed by a version.
+    (match (entry-package-version entry)
+      (""      (manifest-entry-name entry))
+      (version (string-append (manifest-entry-name entry)
+                              "@" version))))
+
+  (if (null? transformation-procedures)
+      `(begin                                     ;simplest case
+         (specifications->manifest
+          (list ,@(map (lambda (entry)
+                         (match (manifest-entry-output entry)
+                           ("out"  (qualified-name entry))
+                           (output (string-append (qualified-name entry)
+                                                  ":" output))))
+                       (manifest-entries manifest)))))
+      (let* ((transform (lambda (options exp)
+                          (if (not options)
+                              exp
+                              (let ((proc (assoc-ref transformation-procedures
+                                                     options)))
+                                `(,proc ,exp))))))
+        `(begin                                   ;transformations apply
+           (use-modules (guix transformations))
+
+           ,@(map (match-lambda
+                    ((options . name)
+                     `(define ,name
+                        (options->transformation ',options))))
+                  transformation-procedures)
+
+           (packages->manifest
+            (list ,@(map (lambda (entry)
+                           (define options
+                             (entry-transformations entry))
+
+                           (define name
+                             (qualified-name entry))
+
+                           (match (manifest-entry-output entry)
+                             ("out"
+                              (transform options
+                                         `(specification->package ,name)))
+                             (output
+                              `(list ,(transform
+                                       options
+                                       `(specification->package ,name))
+                                     ,output))))
+                         (manifest-entries manifest))))))))
 
 
 ;;;
@@ -1526,53 +1610,6 @@ the entries in MANIFEST."
                     `((type . profile-hook)
                       (hook . manual-database))))
 
-(define (texlive-configuration manifest)
-  "Return a derivation that builds a TeXlive configuration for the entries in
-MANIFEST."
-  (define entry->texlive-input
-    (match-lambda
-      (($ <manifest-entry> name version output thing deps)
-       (if (string-prefix? "texlive-" name)
-           (cons (gexp-input thing output)
-                 (append-map entry->texlive-input deps))
-           '()))))
-  (define build
-    (with-imported-modules '((guix build utils)
-                             (guix build union))
-      #~(begin
-          (use-modules (guix build utils)
-                       (guix build union))
-
-          ;; Build a modifiable union of all texlive inputs.  We do this so
-          ;; that TeX live can resolve the parent and grandparent directories
-          ;; correctly.  There might be a more elegant way to accomplish this.
-          (union-build #$output
-                       '#$(append-map entry->texlive-input
-                                      (manifest-entries manifest))
-                       #:create-all-directories? #t
-                       #:log-port (%make-void-port "w"))
-          (let ((texmf.cnf (string-append
-                            #$output
-                            "/share/texmf-dist/web2c/texmf.cnf")))
-            (when (file-exists? texmf.cnf)
-              (substitute* texmf.cnf
-                (("^TEXMFROOT = .*")
-                 (string-append "TEXMFROOT = " #$output "/share\n"))
-                (("^TEXMF = .*")
-                 "TEXMF = $TEXMFROOT/share/texmf-dist\n"))))
-          #t)))
-
-    (with-monad %store-monad
-      (if (any (cut string-prefix? "texlive-" <>)
-               (map manifest-entry-name (manifest-entries manifest)))
-          (gexp->derivation "texlive-configuration" build
-                            #:substitutable? #f
-                            #:local-build? #t
-                            #:properties
-                            `((type . profile-hook)
-                              (hook . texlive-configuration)))
-          (return #f))))
-
 (define %default-profile-hooks
   ;; This is the list of derivation-returning procedures that are called by
   ;; default when making a non-empty profile.
@@ -1584,7 +1621,6 @@ MANIFEST."
         glib-schemas
         gtk-icon-themes
         gtk-im-modules
-        texlive-configuration
         xdg-desktop-database
         xdg-mime-database))
 

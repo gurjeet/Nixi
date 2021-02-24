@@ -40,6 +40,7 @@
 ;;; Copyright © 2020 Oleg Pykhalov <go.wigust@gmail.com>
 ;;; Copyright © 2020 B. Wilson <elaexuotee@wilsonb.com>
 ;;; Copyright © 2020 divoplade <d@divoplade.fr>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -1059,7 +1060,7 @@ security functionality including PGP, S/MIME, SSH, and SSL.")
 (define-public mu
   (package
     (name "mu")
-    (version "1.4.14")
+    (version "1.4.15")
     (source (origin
               (method url-fetch)
               (uri (string-append "https://github.com/djcb/mu/releases/"
@@ -1067,7 +1068,7 @@ security functionality including PGP, S/MIME, SSH, and SSL.")
                                   "mu-" version ".tar.xz"))
               (sha256
                (base32
-                "1fk0zyxajwyzp1f8yn7imbqq77s2w5cab5m9jla4zrybwkdi0r6z"))))
+                "0ailz0k5fdgq6gdl5m7jxy315b7qn5ckj6xwd49hsiq9vqblwlpp"))))
     (build-system gnu-build-system)
     (native-inputs
      `(("pkg-config" ,pkg-config)
@@ -1230,7 +1231,7 @@ Notmuch.")
                (let* ((out (assoc-ref outputs "out"))
                       (bin (string-append out "/bin/notifymuch")))
                  (wrap-program bin
-                   `("PYTHONPATH" ":" prefix (,(getenv "PYTHONPATH")))
+                   `("GUIX_PYTHONPATH" ":" prefix (,(getenv "GUIX_PYTHONPATH")))
                    `("GI_TYPELIB_PATH" ":" prefix
                      (,(getenv "GI_TYPELIB_PATH")
                       ,(string-append out "/lib/girepository-1.0")))))
@@ -3378,7 +3379,6 @@ which sends emails to HyperKitty, the official Mailman3 web archiver.")
        (modify-phases %standard-phases
          (replace 'check
            (lambda _
-             (setenv "PYTHONPATH" (string-append ".:" (getenv "PYTHONPATH")))
              (invoke "example_project/manage.py" "test"
                      "--settings=hyperkitty.tests.settings_test"))))))
     (propagated-inputs

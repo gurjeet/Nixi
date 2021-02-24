@@ -1,10 +1,11 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2014, 2015, 2017, 2018 Mark H Weaver <mhw@netris.org>
 ;;; Copyright © 2015 Eric Bavier <bavier@member.fsf.org>
 ;;; Copyright © 2016 Alex Kost <alezost@gmail.com>
 ;;; Copyright © 2017, 2019, 2020 Efraim Flashner <efraim@flashner.co.il>
 ;;; Copyright © 2019 Marius Bakke <mbakke@fastmail.com>
+;;; Copyright © 2020, 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;; Copyright © 2021 Chris Marusich <cmmarusich@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
@@ -23,6 +24,8 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (guix packages)
+  #:use-module ((guix build utils) #:select (compressor tarball?
+                                                        strip-store-file-name))
   #:use-module (guix utils)
   #:use-module (guix records)
   #:use-module (guix store)
@@ -610,20 +613,7 @@ specifies modules in scope when evaluating SNIPPET."
           ((package) package)
           (#f        #f)))))
 
-  (define decompression-type
-    (cond ((string-suffix? "gz" source-file-name)  "gzip")
-          ((string-suffix? "Z" source-file-name)  "gzip")
-          ((string-suffix? "bz2" source-file-name) "bzip2")
-          ((string-suffix? "lz" source-file-name)  "lzip")
-          ((string-suffix? "zip" source-file-name) "unzip")
-          (else "xz")))
-
-  (define original-file-name
-    ;; Remove the store prefix plus the slash, hash, and hyphen.
-    (let* ((sans (string-drop source-file-name
-                              (+ (string-length (%store-prefix)) 1)))
-           (dash (string-index sans #\-)))
-      (string-drop sans (+ 1 dash))))
+  (define original-file-name (strip-store-file-name source-file-name))
 
   (define (numeric-extension? file-name)
     ;; Return true if FILE-NAME ends with digits.
@@ -636,11 +626,9 @@ specifies modules in scope when evaluating SNIPPET."
 
   (define (tarxz-name file-name)
     ;; Return a '.tar.xz' file name based on FILE-NAME.
-    (let ((base (cond ((numeric-extension? file-name)
-                       original-file-name)
-                      ((checkout? file-name)
-                       (string-drop-right file-name 9))
-                      (else (file-sans-extension file-name)))))
+    (let ((base (if (numeric-extension? file-name)
+                    original-file-name
+                    (file-sans-extension file-name))))
       (string-append base
                      (if (equal? (file-extension base) "tar")
                          ".xz"
@@ -654,17 +642,24 @@ specifies modules in scope when evaluating SNIPPET."
        (lower-object patch system))))
 
   (mlet %store-monad ((tar ->     (lookup-input "tar"))
+                      (gzip ->    (lookup-input "gzip"))
+                      (bzip2 ->   (lookup-input "bzip2"))
+                      (lzip ->    (lookup-input "lzip"))
                       (xz ->      (lookup-input "xz"))
                       (patch ->   (lookup-input "patch"))
                       (locales -> (lookup-input "locales"))
-                      (decomp ->  (lookup-input decompression-type))
+                      (comp ->    (and=> (compressor source-file-name)
+                                         lookup-input))
                       (patches    (sequence %store-monad
                                             (map instantiate-patch patches))))
     (define build
       (with-imported-modules '((guix build utils))
         #~(begin
             (use-modules (ice-9 ftw)
+                         (ice-9 match)
+                         (ice-9 regex)
                          (srfi srfi-1)
+                         (srfi srfi-26)
                          (guix build utils))
 
             ;; The --sort option was added to GNU tar in version 1.28, released
@@ -690,6 +685,29 @@ specifies modules in scope when evaluating SNIPPET."
                             (lambda (name)
                               (not (member name '("." "..")))))))
 
+            (define (repack directory output)
+              ;; Write to OUTPUT a compressed tarball containing DIRECTORY.
+              (unless tar-supports-sort?
+                (call-with-output-file ".file_list"
+                  (lambda (port)
+                    (for-each (lambda (name)
+                                (format port "~a~%" name))
+                              (find-files directory
+                                          #:directories? #t
+                                          #:fail-on-error? #t)))))
+
+              (apply invoke #+(file-append tar "/bin/tar")
+                     "cvfa" output
+                     ;; Avoid non-determinism in the archive.  Set the mtime
+                     ;; to 1 as is the case in the store (software like gzip
+                     ;; behaves differently when it stumbles upon mtime = 0).
+                     "--mtime=@1"
+                     "--owner=root:0" "--group=root:0"
+                     (if tar-supports-sort?
+                         `("--sort=name" ,directory)
+                         '("--no-recursion"
+                           "--files-from=.file_list"))))
+
             ;; Encoding/decoding errors shouldn't be silent.
             (fluid-set! %default-port-conversion-strategy 'error)
 
@@ -703,77 +721,69 @@ specifies modules in scope when evaluating SNIPPET."
                                              (package-version locales)))))
               (setlocale LC_ALL "en_US.utf8"))
 
-            (setenv "PATH" (string-append #+xz "/bin" ":"
-                                          #+decomp "/bin"))
+            (setenv "PATH"
+                    (string-append #+xz "/bin"
+                                   (if #+comp
+                                       (string-append ":" #+comp "/bin")
+                                       "")))
 
-            ;; SOURCE may be either a directory or a tarball.
-            (if (file-is-directory? #+source)
-                (let* ((store     (%store-directory))
-                       (len       (+ 1 (string-length store)))
-                       (base      (string-drop #+source len))
-                       (dash      (string-index base #\-))
-                       (directory (string-drop base (+ 1 dash))))
-                  (mkdir directory)
-                  (copy-recursively #+source directory))
-                #+(if (string=? decompression-type "unzip")
-                      #~(invoke "unzip" #+source)
-                      #~(invoke (string-append #+tar "/bin/tar")
-                                "xvf" #+source)))
+            (setenv "XZ_DEFAULTS" (string-join (%xz-parallel-args)))
 
-            (let ((directory (first-file ".")))
-              (format (current-error-port)
-                      "source is under '~a'~%" directory)
-              (chdir directory)
+            ;; SOURCE may be either a directory, a tarball or a simple file.
+            (let ((name (strip-store-file-name #+source))
+                  (command (and=> #+comp (cut string-append <> "/bin/"
+                                              (compressor #+source)))))
+              (if (file-is-directory? #+source)
+                  (copy-recursively #+source name)
+                  (cond
+                   ((tarball? #+source)
+                    (invoke (string-append #+tar "/bin/tar") "xvf" #+source))
+                   ((and=> (compressor #+source) (cut string= "unzip" <>))
+                    ;; Note: Referring to the store unzip here (#+unzip)
+                    ;; would introduce a cycle.
+                    ("unzip" (invoke "unzip" #+source)))
+                   (else
+                    (copy-file #+source name)
+                    (when command
+                      (invoke command "--decompress" name))))))
 
-              (for-each apply-patch '#+patches)
+            (let* ((file (first-file "."))
+                   (directory (if (file-is-directory? file)
+                                  file
+                                  ".")))
+              (format (current-error-port) "source is at '~a'~%" file)
 
-              (let ((result #+(if snippet
-                                  #~(let ((module (make-fresh-user-module)))
-                                      (module-use-interfaces!
-                                       module
-                                       (map resolve-interface '#+modules))
-                                      ((@ (system base compile) compile)
-                                       '#+snippet
-                                       #:to 'value
-                                       #:opts %auto-compilation-options
-                                       #:env module))
-                                  #~#t)))
-                ;; Issue a warning unless the result is #t.
-                (unless (eqv? result #t)
-                  (format (current-error-port) "\
-## WARNING: the snippet returned `~s'.  Return values other than #t
-## are deprecated.  Please migrate this package so that its snippet
-## reports errors by raising an exception, and otherwise returns #t.~%"
-                          result))
-                (unless result
-                  (error "snippet returned false")))
+              (with-directory-excursion directory
 
-              (chdir "..")
+                (for-each apply-patch '#+patches)
 
-              (unless tar-supports-sort?
-                (call-with-output-file ".file_list"
-                  (lambda (port)
-                    (for-each (lambda (name)
-                                (format port "~a~%" name))
-                              (find-files directory
-                                          #:directories? #t
-                                          #:fail-on-error? #t)))))
-              (apply invoke
-                     (string-append #+tar "/bin/tar")
-                     "cvfa" #$output
-                     ;; Avoid non-determinism in the archive.  Set the mtime
-                     ;; to 1 as is the case in the store (software like gzip
-                     ;; behaves differently when it stumbles upon mtime = 0).
-                     "--mtime=@1"
-                     "--owner=root:0"
-                     "--group=root:0"
-                     (if tar-supports-sort?
-                         `("--sort=name"
-                           ,directory)
-                         '("--no-recursion"
-                           "--files-from=.file_list")))))))
+                #+(if snippet
+                      #~(let ((module (make-fresh-user-module)))
+                          (module-use-interfaces!
+                           module
+                           (map resolve-interface '#+modules))
+                          ((@ (system base compile) compile)
+                           '#+snippet
+                           #:to 'value
+                           #:opts %auto-compilation-options
+                           #:env module))
+                      #~#t))
 
-    (let ((name (tarxz-name original-file-name)))
+              ;; If SOURCE is a directory (such as a checkout), return a
+              ;; directory.  Otherwise create a tarball.
+              (cond
+               ((file-is-directory? #+source)
+                (copy-recursively directory #$output
+                                  #:log (%make-void-port "w")))
+               ((not #+comp)
+                (copy-file file #$output))
+               (else
+                (repack directory #$output)))))))
+
+    (let ((name (if (or (checkout? original-file-name)
+                        (not (compressor original-file-name)))
+                    original-file-name
+                    (tarxz-name original-file-name))))
       (gexp->derivation name build
                         #:graft? #f
                         #:system system
@@ -1410,6 +1420,22 @@ TARGET."
          (bag     (package->bag package system target)))
     (bag-grafts store bag)))
 
+(define-inlinable (derivation=? drv1 drv2)
+  "Return true if DRV1 and DRV2 are equal."
+  (or (eq? drv1 drv2)
+      (string=? (derivation-file-name drv1)
+                (derivation-file-name drv2))))
+
+(define (input=? input1 input2)
+  "Return true if INPUT1 and INPUT2 are equivalent."
+  (match input1
+    ((label1 drv1 . outputs1)
+     (match input2
+       ((label2 drv2 . outputs2)
+        (and (string=? label1 label2)
+             (equal? outputs1 outputs2)
+             (derivation=? drv1 drv2)))))))
+
 (define* (bag->derivation store bag
                           #:optional context)
   "Return the derivation to build BAG for SYSTEM.  Optionally, CONTEXT can be
@@ -1428,9 +1454,12 @@ error reporting."
                                          p))
                                        (_ '()))
                                       inputs))))
-
+        ;; It's possible that INPUTS contains packages that are not 'eq?' but
+        ;; that lead to the same derivation.  Delete those duplicates to avoid
+        ;; issues down the road, such as duplicate entries in '%build-inputs'.
         (apply (bag-build bag)
-               store (bag-name bag) input-drvs
+               store (bag-name bag)
+               (delete-duplicates input-drvs input=?)
                #:search-paths paths
                #:outputs (bag-outputs bag) #:system system
                (bag-arguments bag)))))
@@ -1468,8 +1497,9 @@ This is an internal procedure."
 
     (apply (bag-build bag)
            store (bag-name bag)
-           #:native-drvs build-drvs
-           #:target-drvs (append host-drvs target-drvs)
+           #:native-drvs (delete-duplicates build-drvs input=?)
+           #:target-drvs (delete-duplicates (append host-drvs target-drvs)
+                                            input=?)
            #:search-paths paths
            #:native-search-paths npaths
            #:outputs (bag-outputs bag)

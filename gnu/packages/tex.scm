@@ -36,6 +36,7 @@
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (guix packages)
   #:use-module (guix download)
+  #:use-module (guix build-system copy)
   #:use-module (guix build-system gnu)
   #:use-module (guix build-system perl)
   #:use-module (guix build-system python)
@@ -234,98 +235,105 @@ files from LOCATIONS with expected checksum HASH.  CODE is not currently in use.
 
 (define-public texlive-bin
   (package
-   (name "texlive-bin")
-   (version "20190410")
-   (source
-    (origin
-      (method url-fetch)
-      (uri (string-append "ftp://tug.org/historic/systems/texlive/2019/"
-                          "texlive-" version "-source.tar.xz"))
-      (sha256
-       (base32
-        "1dfps39q6bdr1zsbp9p74mvalmy3bycihv19sb9c6kg30kprz8nj"))
-      (patches
-       (let ((arch-patch
-              (lambda (name revision hash)
-                (origin
-                  (method url-fetch)
-                  (uri (string-append "https://git.archlinux.org/svntogit/packages.git"
-                                      "/plain/trunk/" name "?h=packages/texlive-bin"
-                                      "&id=" revision))
-                  (file-name (string-append "texlive-bin-" name))
-                  (sha256 (base32 hash)))))
-             (arch-revision "49d7fe25e5ea63f136ebc20270c1d8fc9b00041c"))
-         (list
-          (arch-patch "pdftex-poppler0.76.patch" arch-revision
-                      "03vc88dz37mjjyaspzv0fik2fp5gp8qv82114869akd1dhszbaax")
-          (search-patch "texlive-bin-poppler-0.83.patch")
-          (arch-patch "texlive-poppler-0.84.patch" arch-revision
-                      "1ia6cr99krk4ipx4hdi2qdb98bh2h26mckjlpxdzrjnfhlnghksa")
-          (search-patch "texlive-bin-poppler-0.86.patch"))))
-      (modules '((guix build utils)
-                 (ice-9 ftw)))
-      (snippet
-       '(begin
-          (with-directory-excursion "libs"
-            (let ((preserved-directories '("." ".." "lua53" "luajit")))
-              ;; Delete bundled software, except Lua which cannot easily be
-              ;; used as an external dependency.
-              (for-each delete-file-recursively
-                        (scandir "."
-                                 (lambda (file)
-                                   (and (not (member file preserved-directories))
-                                        (eq? 'directory (stat:type (stat file)))))))))
-          ;; TODO: Unbundle stuff in texk/dvisvgm/dvisvgm-src/libs too.
-          #t))))
-   (build-system gnu-build-system)
-   (inputs
-    `(("texlive-extra-src" ,texlive-extra-src)
-      ("texlive-scripts"
-       ,(origin
-          (method svn-fetch)
-          (uri (svn-reference
-                (url (string-append "svn://www.tug.org/texlive/tags/"
-                                    %texlive-tag "/Master/texmf-dist/"
-                                    "/scripts/texlive"))
-                (revision %texlive-revision)))
-          (file-name (string-append "texlive-scripts-"
-                                    (number->string %texlive-revision)
-                                    "-checkout"))
-          (sha256
-           (base32
-            "1cj04svl8bpfwjr4gqfcc04rmklz3aggrxvgj7q5bxrh7c7g18xh"))))
-      ("cairo" ,cairo)
-      ("fontconfig" ,fontconfig)
-      ("fontforge" ,fontforge)
-      ("freetype" ,freetype)
-      ("gd" ,gd)
-      ("gmp" ,gmp)
-      ("ghostscript" ,ghostscript)
-      ("graphite2" ,graphite2)
-      ("harfbuzz" ,harfbuzz)
-      ("icu4c" ,icu4c)
-      ("libpaper" ,libpaper)
-      ("libpng" ,libpng)
-      ("libxaw" ,libxaw)
-      ("libxt" ,libxt)
-      ("mpfr" ,mpfr)
-      ("perl" ,perl)
-      ("pixman" ,pixman)
-      ("poppler" ,poppler)
-      ("potrace" ,potrace)
-      ("python" ,python-2) ; incompatible with Python 3 (print syntax)
-      ("ruby" ,ruby)
-      ("tcsh" ,tcsh)
-      ("teckit" ,teckit)
-      ("zlib" ,zlib)
-      ("zziplib" ,zziplib)))
-   (native-inputs
-    `(("pkg-config" ,pkg-config)))
-   (arguments
-    `(#:out-of-source? #t
-      #:configure-flags
+    (name "texlive-bin")
+    (version "20190410")
+    (source
+     (origin
+       (method url-fetch)
+       (uri (string-append "ftp://tug.org/historic/systems/texlive/2019/"
+                           "texlive-" version "-source.tar.xz"))
+       (sha256
+        (base32
+         "1dfps39q6bdr1zsbp9p74mvalmy3bycihv19sb9c6kg30kprz8nj"))
+       (patches
+        (let ((arch-patch
+               (lambda (name revision hash)
+                 (origin
+                   (method url-fetch)
+                   (uri (string-append "https://git.archlinux.org/svntogit/packages.git"
+                                       "/plain/trunk/" name "?h=packages/texlive-bin"
+                                       "&id=" revision))
+                   (file-name (string-append "texlive-bin-" name))
+                   (sha256 (base32 hash)))))
+              (arch-revision "49d7fe25e5ea63f136ebc20270c1d8fc9b00041c"))
+          (list
+           (arch-patch "pdftex-poppler0.76.patch" arch-revision
+                       "03vc88dz37mjjyaspzv0fik2fp5gp8qv82114869akd1dhszbaax")
+           (search-patch "texlive-bin-poppler-0.83.patch")
+           (arch-patch "texlive-poppler-0.84.patch" arch-revision
+                       "1ia6cr99krk4ipx4hdi2qdb98bh2h26mckjlpxdzrjnfhlnghksa")
+           (search-patch "texlive-bin-poppler-0.86.patch"))))
+       (modules '((guix build utils)
+                  (ice-9 ftw)))
+       (snippet
+        '(begin
+           (with-directory-excursion "libs"
+             (let ((preserved-directories '("." ".." "lua53" "luajit")))
+               ;; Delete bundled software, except Lua which cannot easily be
+               ;; used as an external dependency.
+               (for-each delete-file-recursively
+                         (scandir "."
+                                  (lambda (file)
+                                    (and (not (member file preserved-directories))
+                                         (eq? 'directory (stat:type (stat file)))))))))
+           ;; TODO: Unbundle stuff in texk/dvisvgm/dvisvgm-src/libs too.
+           #t))))
+    (build-system gnu-build-system)
+    (inputs
+     `(("texlive-extra-src" ,texlive-extra-src)
+       ("config" ,config)
+       ("texlive-scripts"
+        ,(origin
+           (method svn-fetch)
+           (uri (svn-reference
+                 (url (string-append "svn://www.tug.org/texlive/tags/"
+                                     %texlive-tag "/Master/texmf-dist/"
+                                     "/scripts/texlive"))
+                 (revision %texlive-revision)))
+           (file-name (string-append "texlive-scripts-"
+                                     (number->string %texlive-revision)
+                                     "-checkout"))
+           (sha256
+            (base32
+             "1cj04svl8bpfwjr4gqfcc04rmklz3aggrxvgj7q5bxrh7c7g18xh"))))
+       ("cairo" ,cairo)
+       ("fontconfig" ,fontconfig)
+       ("fontforge" ,fontforge)
+       ("freetype" ,freetype)
+       ("gd" ,gd)
+       ("gmp" ,gmp)
+       ("ghostscript" ,ghostscript)
+       ("graphite2" ,graphite2)
+       ("harfbuzz" ,harfbuzz)
+       ("icu4c" ,icu4c)
+       ("libpaper" ,libpaper)
+       ("libpng" ,libpng)
+       ("libxaw" ,libxaw)
+       ("libxt" ,libxt)
+       ("mpfr" ,mpfr)
+       ("perl" ,perl)
+       ("pixman" ,pixman)
+       ("poppler" ,poppler)
+       ("potrace" ,potrace)
+       ("python" ,python)
+       ("ruby" ,ruby)
+       ("tcsh" ,tcsh)
+       ("teckit" ,teckit)
+       ("zlib" ,zlib)
+       ("zziplib" ,zziplib)))
+    (native-inputs
+     `(("pkg-config" ,pkg-config)))
+    (arguments
+     `(#:modules ((guix build gnu-build-system)
+                  (guix build utils)
+                  (ice-9 ftw)
+                  (srfi srfi-1)
+                  (srfi srfi-26))
+       #:out-of-source? #t
+       #:configure-flags
        '("--disable-static"
          "--disable-native-texlive-build"
+         "--enable-shared"
          "--with-system-cairo"
          "--with-system-freetype2"
          "--with-system-gd"
@@ -351,110 +359,191 @@ files from LOCATIONS with expected checksum HASH.  CODE is not currently in use.
                  "--disable-mfluajit")
                '()))
 
-      ;; Disable tests on mips64/aarch64/powerpc64le to cope with a failure of
-      ;; luajiterr.test.
-      ;; XXX FIXME fix luajit properly on mips64, aarch64 and powerpc64le.
-      #:tests? ,(let ((s (or (%current-target-system)
-                             (%current-system))))
-                  (not (or (string-prefix? "aarch64" s)
-                           (string-prefix? "mips64" s)
-                           (string-prefix? "powerpc64le" s))))
-      #:phases
-      (modify-phases %standard-phases
-        (add-after 'unpack 'configure-ghostscript-executable
-          ;; ps2eps.pl uses the "gswin32c" ghostscript executable on Windows,
-          ;; and the "gs" ghostscript executable on Unix. It detects Unix by
-          ;; checking for the existence of the /usr/bin directory. Since
-          ;; Guix System does not have /usr/bin, it is also detected as Windows.
-          (lambda* (#:key inputs #:allow-other-keys)
-            (substitute* "utils/ps2eps/ps2eps-src/bin/ps2eps.pl"
-              (("gswin32c") "gs"))
-            (substitute* "texk/texlive/linked_scripts/epstopdf/epstopdf.pl"
-              (("\"gs\"")
-               (string-append "\"" (assoc-ref inputs "ghostscript") "/bin/gs\"")))
-            #t))
-        (add-after 'unpack 'use-code-for-new-poppler
-          (lambda _
-            (copy-file "texk/web2c/pdftexdir/pdftoepdf-poppler0.76.0.cc"
-                       "texk/web2c/pdftexdir/pdftoepdf.cc")
-            (copy-file "texk/web2c/pdftexdir/pdftosrc-poppler0.76.0.cc"
-                       "texk/web2c/pdftexdir/pdftosrc.cc")
-            #t))
-        (add-after 'unpack 'patch-dvisvgm-build-files
-          (lambda _
-            ;; XXX: Ghostscript is detected, but HAVE_LIBGS is never set, so
-            ;; the appropriate linker flags are not added.
-            (substitute* "texk/dvisvgm/configure"
-              (("^have_libgs=yes" all)
-               (string-append all "\nHAVE_LIBGS=1")))
-            #t))
-        (add-after 'unpack 'disable-failing-test
-          (lambda _
-            ;; FIXME: This test fails on 32-bit architectures since Glibc 2.28:
-            ;; <https://bugzilla.redhat.com/show_bug.cgi?id=1631847>.
-            (substitute* "texk/web2c/omegafonts/check.test"
-              (("^\\./omfonts -ofm2opl \\$srcdir/tests/check tests/xcheck \\|\\| exit 1")
-               "./omfonts -ofm2opl $srcdir/tests/check tests/xcheck || exit 77"))
-            #t))
-        (add-after 'install 'postint
-          (lambda* (#:key inputs outputs #:allow-other-keys #:rest args)
-            (let* ((out (assoc-ref outputs "out"))
-                   (share (string-append out "/share"))
-                   (texlive-extra (assoc-ref inputs "texlive-extra-src"))
-                   (unpack (assoc-ref %standard-phases 'unpack))
-                   (patch-source-shebangs
-                    (assoc-ref %standard-phases 'patch-source-shebangs)))
-              (substitute* (string-append share "/texmf-dist/web2c/texmf.cnf")
-                ;; Don't truncate lines.
-                (("^error_line = .*$") "error_line = 254\n")
-                (("^half_error_line = .*$") "half_error_line = 238\n")
-                (("^max_print_line = .*$") "max_print_line = 1000\n"))
-              ;; Create symbolic links for the latex variants and their
-              ;; man pages.
-              (with-directory-excursion (string-append out "/bin/")
-                (for-each symlink
-                          '("pdftex" "pdftex"   "xetex"   "luatex")
-                          '("latex"  "pdflatex" "xelatex" "lualatex")))
-              (with-directory-excursion (string-append share "/man/man1/")
-                (symlink "luatex.1" "lualatex.1"))
-              ;; Unpack texlive-extra and install tlpkg.
-              (mkdir "texlive-extra")
-              (with-directory-excursion "texlive-extra"
-                (apply unpack (list #:source texlive-extra))
-                (apply patch-source-shebangs (list #:source texlive-extra))
-                (invoke "mv" "tlpkg" share))
-              (let ((scripts (string-append share "/texmf-dist/scripts/texlive/")))
-                (mkdir-p scripts)
-                (copy-recursively (assoc-ref inputs "texlive-scripts") scripts)
-                ;; Make sure that fmtutil can find its Perl modules.
-                (substitute* (string-append scripts "fmtutil.pl")
-                  (("\\$TEXMFROOT/") (string-append share "/"))))
+       ;; Disable tests on mips64/aarch64/powerpc64le to cope with a failure of
+       ;; luajiterr.test.
+       ;; XXX FIXME fix luajit properly on these architectures.
+       #:tests? ,(let ((s (or (%current-target-system)
+                              (%current-system))))
+                   (not (or (string-prefix? "aarch64" s)
+                            (string-prefix? "mips64" s)
+                            (string-prefix? "powerpc64le" s))))
+       #:phases
+       (modify-phases %standard-phases
+         (add-after 'unpack 'configure-ghostscript-executable
+           ;; ps2eps.pl uses the "gswin32c" ghostscript executable on Windows,
+           ;; and the "gs" ghostscript executable on Unix. It detects Unix by
+           ;; checking for the existence of the /usr/bin directory. Since
+           ;; Guix System does not have /usr/bin, it is also detected as Windows.
+           (lambda* (#:key inputs #:allow-other-keys)
+             (substitute* "utils/ps2eps/ps2eps-src/bin/ps2eps.pl"
+               (("gswin32c") "gs"))
+             (substitute* "texk/texlive/linked_scripts/epstopdf/epstopdf.pl"
+               (("\"gs\"")
+                (string-append "\"" (assoc-ref inputs "ghostscript") "/bin/gs\"")))
+             #t))
+         (add-after 'unpack 'use-code-for-new-poppler
+           (lambda _
+             (copy-file "texk/web2c/pdftexdir/pdftoepdf-poppler0.76.0.cc"
+                        "texk/web2c/pdftexdir/pdftoepdf.cc")
+             (copy-file "texk/web2c/pdftexdir/pdftosrc-poppler0.76.0.cc"
+                        "texk/web2c/pdftexdir/pdftosrc.cc")
+             #t))
+         (add-after 'unpack 'patch-dvisvgm-build-files
+           (lambda _
+             ;; XXX: Ghostscript is detected, but HAVE_LIBGS is never set, so
+             ;; the appropriate linker flags are not added.
+             (substitute* "texk/dvisvgm/configure"
+               (("^have_libgs=yes" all)
+                (string-append all "\nHAVE_LIBGS=1")))
+             #t))
+         (add-after 'unpack 'disable-failing-test
+           (lambda _
+             ;; FIXME: This test fails on 32-bit architectures since Glibc 2.28:
+             ;; <https://bugzilla.redhat.com/show_bug.cgi?id=1631847>.
+             (substitute* "texk/web2c/omegafonts/check.test"
+               (("^\\./omfonts -ofm2opl \\$srcdir/tests/check tests/xcheck \\|\\| exit 1")
+                "./omfonts -ofm2opl $srcdir/tests/check tests/xcheck || exit 77"))
+             #t))
+         (add-after 'unpack 'unpack-texlive-extra
+           (lambda* (#:key inputs #:allow-other-keys)
+             (mkdir "texlive-extra")
+             (with-directory-excursion "texlive-extra"
+               (apply (assoc-ref %standard-phases 'unpack)
+                      (list #:source (assoc-ref inputs "texlive-extra-src"))))))
+         (add-after 'unpack-texlive-extra 'unpack-texlive-scripts
+           (lambda* (#:key inputs #:allow-other-keys)
+             (mkdir "texlive-scripts")
+             (with-directory-excursion "texlive-scripts"
+               (apply (assoc-ref %standard-phases 'unpack)
+                      (list #:source (assoc-ref inputs "texlive-scripts"))))))
+         (add-after 'unpack-texlive-scripts 'patch-scripts
+           (lambda _
+             (let* ((scripts (append (find-files "texk/kpathsea" "^mktex")
+                                     (find-files "texlive-scripts" "\\.sh$")))
+                    (commands '("awk" "basename" "cat" "grep" "mkdir" "rm"
+                                "sed" "sort" "uname"))
+                    (command-regexp (format #f "\\b(~a)\\b"
+                                            (string-join commands "|")))
+                    (iso-8859-1-encoded-scripts
+                     '("texlive-scripts/source/rubibtex.sh"
+                       "texlive-scripts/source/rumakeindex.sh")))
 
-              ;; texlua shebangs are not patched by the patch-source-shebangs
-              ;; phase because the texlua executable does not exist at that
-              ;; time.
-              (setenv "PATH" (string-append (getenv "PATH") ":" out "/bin"))
-              (with-directory-excursion out
-                (patch-source-shebangs))))))))
-   (native-search-paths
-    (list (search-path-specification
-           (variable "TEXMF")
-           (files '("share/texmf-dist"))
-           (separator #f))
-          (search-path-specification
-           (variable "TEXMFCNF")
-           (files '("share/texmf-dist/web2c"))
-           (separator #f))))
-   (synopsis "TeX Live, a package of the TeX typesetting system")
-   (description
-    "TeX Live provides a comprehensive TeX document production system.
+               (define (substitute-commands scripts)
+                 (substitute* scripts
+                   ((command-regexp dummy command)
+                    (which command))))
+
+               (substitute-commands (lset-difference string= scripts
+                                                     iso-8859-1-encoded-scripts))
+
+               (with-fluids ((%default-port-encoding "ISO-8859-1"))
+                 (substitute-commands iso-8859-1-encoded-scripts))
+
+               #t)))
+         (add-after 'check 'customize-texmf.cnf
+           ;; The default texmf.cnf is provided by this package, texlive-bin.
+           ;; Every variable of interest is set relatively to the GUIX_TEXMF
+           ;; environment variable defined via a search path specification
+           ;; further below.  The configuration file is patched after the test
+           ;; suite has run, as it relies on the default configuration to find
+           ;; its paths (and the GUIX_TEXMF variable isn't set yet).
+           (lambda _
+             ;; The current directory is build/ because of the out-of-tree
+             ;; build.
+             (let* ((source    (first (scandir ".." (cut string-suffix?
+                                                         "source" <>))))
+                    (texmf.cnf (string-append "../" source
+                                              "/texk/kpathsea/texmf.cnf")))
+               (substitute* texmf.cnf
+                 (("^TEXMFROOT = .*")
+                  "TEXMFROOT = {$GUIX_TEXMF}/..\n")
+                 (("^TEXMF = .*")
+                  "TEXMF = {$GUIX_TEXMF}\n")
+                 (("^%TEXMFCNF = .*")
+                  "TEXMFCNF = {$GUIX_TEXMF}/web2c\n")
+                 ;; Don't truncate lines.
+                 (("^error_line = .*$") "error_line = 254\n")
+                 (("^half_error_line = .*$") "half_error_line = 238\n")
+                 (("^max_print_line = .*$") "max_print_line = 1000\n")))
+             #t))
+         (add-after 'install 'postint
+           (lambda* (#:key inputs outputs #:allow-other-keys #:rest args)
+             (let* ((out (assoc-ref outputs "out"))
+                    (patch-source-shebangs (assoc-ref %standard-phases
+                                                      'patch-source-shebangs))
+                    (share (string-append out "/share"))
+                    (scripts (string-append share
+                                            "/texmf-dist/scripts/texlive"))
+                    (source (string-append
+                             "../" (first (scandir ".." (cut string-suffix?
+                                                             "source" <>)))))
+                    (tl-extra-root (string-append source "/texlive-extra"))
+                    (tl-extra-dir (first
+                                   (scandir tl-extra-root
+                                            (negate
+                                             (cut member <> '("." ".."))))))
+                    (tlpkg-src (string-append tl-extra-root "/" tl-extra-dir
+                                              "/tlpkg"))
+                    (config.guess (string-append (assoc-ref inputs "config")
+                                                 "/bin/config.guess")))
+
+               ;; Create symbolic links for the latex variants and their
+               ;; man pages.
+               (with-directory-excursion (string-append out "/bin/")
+                 (for-each symlink
+                           '("pdftex" "pdftex"   "xetex"   "luatex")
+                           '("latex"  "pdflatex" "xelatex" "lualatex")))
+               (with-directory-excursion (string-append share "/man/man1/")
+                 (symlink "luatex.1" "lualatex.1"))
+
+               ;; Install tlpkg.
+               (copy-recursively tlpkg-src (string-append share "/tlpkg"))
+
+               ;; Install texlive-scripts.
+               (copy-recursively (string-append
+                                  source "/texlive-scripts/source/")
+                                 scripts)
+
+               ;; Make sure that fmtutil can find its Perl modules.
+               (substitute* (string-append scripts "/fmtutil.pl")
+                 (("\\$TEXMFROOT/")
+                  (string-append share "/")))
+
+               ;; Likewise for updmap.pl.
+               (substitute* (string-append scripts "/updmap.pl")
+                 (("\\$TEXMFROOT/tlpkg")
+                  (string-append share "/tlpkg")))
+
+               ;; Likewise for the tlmgr.
+               (substitute* (string-append scripts "/tlmgr.pl")
+                 ((".*\\$::installerdir = \\$Master.*" all)
+                  (format #f "  $Master = ~s;~%~a" share all)))
+
+               ;; Install the config.guess script, required by tlmgr.
+               (with-directory-excursion share
+                 (mkdir-p "tlpkg/installer/")
+                 (symlink config.guess "tlpkg/installer/config.guess"))
+
+               ;; texlua shebangs are not patched by the patch-source-shebangs
+               ;; phase because the texlua executable does not exist at that
+               ;; time.
+               (setenv "PATH" (string-append (getenv "PATH") ":" out "/bin"))
+               (with-directory-excursion out
+                 (patch-source-shebangs))))))))
+    (native-search-paths
+     (list (search-path-specification
+            (variable "GUIX_TEXMF")
+            (files '("share/texmf-dist")))))
+    (synopsis "TeX Live, a package of the TeX typesetting system")
+    (description
+     "TeX Live provides a comprehensive TeX document production system.
 It includes all the major TeX-related programs, macro packages, and fonts
 that are free software, including support for many languages around the
 world.
 
 This package contains the binaries.")
-   (license (license:fsf-free "https://www.tug.org/texlive/copying.html"))
-   (home-page "https://www.tug.org/texlive/")))
+    (license (license:fsf-free "https://www.tug.org/texlive/copying.html"))
+    (home-page "https://www.tug.org/texlive/")))
 
 
 (define texlive-docstrip
@@ -560,9 +649,9 @@ to adapt the plain e-TeX source file to work with XeTeX and LuaTeX.")
 (define-public texlive-generic-tex-ini-files
   (deprecated-package "texlive-generic-tex-ini-files" texlive-tex-ini-files))
 
-(define-public texlive-metafont-base
+(define-public texlive-metafont
   (package
-    (name "texlive-metafont-base")
+    (name "texlive-metafont")
     (version (number->string %texlive-revision))
     (source (origin
               (method svn-fetch)
@@ -598,11 +687,13 @@ to adapt the plain e-TeX source file to work with XeTeX and LuaTeX.")
            (lambda* (#:key outputs #:allow-other-keys)
              (let* ((out  (assoc-ref outputs "out"))
                     (base (string-append out "/share/texmf-dist/web2c"))
-                    (mf   (string-append out "/share/texmf-dist/metafont/base")))
+                    (mf   (string-append out "/share/texmf-dist/metafont/")))
                (mkdir-p base)
                (mkdir-p mf)
                (install-file "build/mf.base" base)
-               (copy-recursively "base" mf)
+               (for-each (lambda (where)
+                           (copy-recursively where (string-append mf where)))
+                         (list "base" "misc" "config"))
                #t))))))
     (native-inputs
      `(("texlive-bin" ,texlive-bin)))
@@ -611,6 +702,9 @@ to adapt the plain e-TeX source file to work with XeTeX and LuaTeX.")
     (description "This package provides the Metafont base files needed to
 build fonts using the Metafont system.")
     (license license:knuth)))
+
+(define-public texlive-metafont-base
+  (deprecated-package "texlive-metafont-base" texlive-metafont))
 
 (define-public texlive-fontinst
   (let ((template (simple-texlive-package
@@ -743,7 +837,7 @@ documents.")
           `(modify-phases ,phases
              (replace 'build
                (lambda* (#:key inputs #:allow-other-keys)
-                 (let ((mf (assoc-ref inputs "texlive-metafont-base")))
+                 (let ((mf (assoc-ref inputs "texlive-metafont")))
                    ;; Tell mf where to find mf.base
                    (setenv "MFBASES" (string-append mf "/share/texmf-dist/web2c"))
                    ;; Tell mf where to look for source files
@@ -787,7 +881,7 @@ documents.")
                    #t)))))))
       (native-inputs
        `(("texlive-bin" ,texlive-bin)
-         ("texlive-metafont-base" ,texlive-metafont-base)))
+         ("texlive-metafont" ,texlive-metafont)))
       (home-page "https://www.ctan.org/pkg/cm")
       (synopsis "Computer Modern fonts for TeX")
       (description "This package provides the Computer Modern fonts by Donald
@@ -890,73 +984,69 @@ Computers & Typesetting series.")
 (define-public texlive-fonts-lm
   (deprecated-package "texlive-fonts-lm" texlive-lm))
 
-(define-public texlive-fonts-knuth-lib
-  (package
-    (name "texlive-fonts-knuth-lib")
-    (version (number->string %texlive-revision))
-    (source (origin
-              (method svn-fetch)
-              (uri (svn-reference
-                    (url (string-append "svn://www.tug.org/texlive/tags/"
-                                        %texlive-tag "/Master/texmf-dist/"
-                                        "/fonts/source/public/knuth-lib"))
-                    (revision %texlive-revision)))
-              (file-name (string-append name "-" version "-checkout"))
-              (sha256
-               (base32
-                "0in9aqyi8jkyf9d16z0li50z5fpwj1iwgwm83gmvwqcf7chfs04y"))))
-    (build-system gnu-build-system)
-    (arguments
-     `(#:modules ((guix build gnu-build-system)
-                  (guix build utils)
-                  (srfi srfi-26))
-       #:tests? #f ; no tests
-       #:phases
-       (modify-phases %standard-phases
-         (delete 'configure)
-         (replace 'build
-           (lambda* (#:key inputs #:allow-other-keys)
-             (let ((mf (assoc-ref inputs "texlive-metafont-base")))
-               ;; Tell mf where to find mf.base
-               (setenv "MFBASES"
-                       (string-append mf "/share/texmf-dist/web2c"))
-               ;; Tell mf where to look for source files
-               (setenv "MFINPUTS"
-                       (string-append (getcwd) ":"
-                                      mf "/share/texmf-dist/metafont/base")))
-             (mkdir "build")
-             (for-each (lambda (font)
-                         (format #t "building font ~a\n" font)
-                         (invoke "mf" "-progname=mf"
-                                 "-output-directory=build"
-                                 (string-append "\\"
-                                                "mode:=ljfour; "
-                                                "mag:=1; "
-                                                "batchmode; "
-                                                "input " font)))
-                       (find-files "." "(manfnt|logo.+)\\.mf$"))
-             #t))
-         (replace 'install
-           (lambda* (#:key outputs #:allow-other-keys)
-             (let* ((out (assoc-ref outputs "out"))
-                    (tfm (string-append
-                          out "/share/texmf-dist/fonts/tfm/public/knuth-lib"))
-                    (mf  (string-append
-                          out "/share/texmf-dist/fonts/source/public/knuth-lib")))
-               (for-each (cut install-file <> tfm)
-                         (find-files "build" "\\.*"))
-               (for-each (cut install-file <> mf)
-                         (find-files "." "\\.mf"))
-               #t))))))
-    (native-inputs
-     `(("texlive-bin" ,texlive-bin)
-       ("texlive-metafont-base" ,texlive-metafont-base)))
-    (home-page "https://www.ctan.org/pkg/knuth-lib")
-    (synopsis "Small library of METAFONT sources")
-    (description "This is a collection of core TeX and METAFONT macro files
+(define-public texlive-knuth-lib
+  (let ((template (simple-texlive-package
+                   "texlive-knuth-lib"
+                   (list "/fonts/source/public/knuth-lib/"
+                         "/tex/generic/knuth-lib/"
+                         "/tex/plain/knuth-lib/")
+                   (base32
+                    "0lizrhdr4pirhh4ry44znddksd7akkxli2i6sddm5rzqljiqdy3v")
+                   #:trivial? #t)))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:modules _ '())
+          '((guix build gnu-build-system)
+            (guix build utils)
+            (srfi srfi-26)))
+         ((#:phases phases '())
+          `(modify-phases ,phases
+             (replace 'build
+               (lambda* (#:key inputs #:allow-other-keys)
+                 (with-directory-excursion "fonts/source/public/knuth-lib"
+                   (let ((mf (assoc-ref inputs "texlive-metafont")))
+                     ;; Tell mf where to find mf.base
+                     (setenv "MFBASES"
+                             (string-append mf "/share/texmf-dist/web2c"))
+                     ;; Tell mf where to look for source files
+                     (setenv "MFINPUTS"
+                             (string-append (getcwd) ":"
+                                            mf "/share/texmf-dist/metafont/base")))
+                   (mkdir "build")
+                   (for-each (lambda (font)
+                               (format #t "building font ~a\n" font)
+                               (invoke "mf" "-progname=mf"
+                                       "-output-directory=build"
+                                       (string-append "\\"
+                                                      "mode:=ljfour; "
+                                                      "mag:=1; "
+                                                      "batchmode; "
+                                                      "input " font)))
+                             (find-files "." "(manfnt|logo.+)\\.mf$")))
+                 #t))
+             (add-after 'install 'install-fonts
+               (lambda* (#:key outputs #:allow-other-keys)
+                 (with-directory-excursion "fonts/source/public/knuth-lib"
+                   (let* ((out (assoc-ref outputs "out"))
+                          (tfm (string-append
+                                out "/share/texmf-dist/fonts/tfm/public/knuth-lib")))
+                     (for-each (cut install-file <> tfm)
+                               (find-files "build" "\\.tfm"))
+                     #t))))))))
+      (native-inputs
+       `(("texlive-bin" ,texlive-bin)
+         ("texlive-metafont" ,texlive-metafont)))
+      (home-page "https://www.ctan.org/pkg/knuth-lib")
+      (synopsis "Small library of METAFONT sources")
+      (description "This is a collection of core TeX and METAFONT macro files
 from Donald Knuth, including the plain format, plain base, and the MF logo
 fonts.")
-    (license license:knuth)))
+      (license license:knuth))))
+
+(define-public texlive-fonts-knuth-lib
+  (deprecated-package "texlive-fonts-knuth-lib" texlive-knuth-lib))
 
 (define-public texlive-fonts-latex
   (package
@@ -985,7 +1075,7 @@ fonts.")
          (delete 'configure)
          (replace 'build
            (lambda* (#:key inputs #:allow-other-keys)
-             (let ((mf (assoc-ref inputs "texlive-metafont-base")))
+             (let ((mf (assoc-ref inputs "texlive-metafont")))
                ;; Tell mf where to find mf.base
                (setenv "MFBASES" (string-append mf "/share/texmf-dist/web2c"))
                ;; Tell mf where to look for source files
@@ -1024,7 +1114,7 @@ fonts.")
                #t))))))
     (native-inputs
      `(("texlive-bin" ,texlive-bin)
-       ("texlive-metafont-base" ,texlive-metafont-base)
+       ("texlive-metafont" ,texlive-metafont)
        ("texlive-cm" ,texlive-cm)))
     (home-page "https://www.ctan.org/pkg/latex-fonts")
     (synopsis "Collection of fonts used in LaTeX distributions")
@@ -1034,27 +1124,81 @@ class), line and circle fonts (for use in the picture environment) and LaTeX
 symbol fonts.")
     (license license:lppl1.2+)))
 
-(define-public texlive-latex-mflogo
-  (package
-    (name "texlive-latex-mflogo")
-    (version (number->string %texlive-revision))
-    (source
-     (origin
-       (method svn-fetch)
-       (uri (texlive-ref "latex" "mflogo"))
-       (file-name (string-append name "-" version "-checkout"))
-       (sha256
-        (base32
-         "15i2ib6nvhf31g1b92c6njf7n0g29znlq7hbfp9ii7qabhcwwvrj"))))
-    (build-system texlive-build-system)
-    (arguments '(#:tex-directory "latex/mflogo"))
-    (home-page "http://www.ctan.org/pkg/mflogo")
-    (synopsis "LaTeX support for Metafont logo fonts")
-    (description
-     "This package provides LaTeX and font definition files to access the
+(define-public texlive-mflogo
+  (let ((template (simple-texlive-package
+                   "texlive-mflogo"
+                   (list "/doc/latex/mflogo/"
+                         "/source/latex/mflogo/"
+                         "/fonts/source/public/mflogo/logosl8.mf")
+                   (base32
+                    "1vb4mg7fh4k54g7nqwiw3qm4iir8whpfnspis76l4sddzar1amh7"))))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:modules _ '())
+          '((guix build texlive-build-system)
+            (guix build utils)
+            (srfi srfi-1)
+            (srfi srfi-26)))
+         ((#:tex-directory _ #t)
+          "latex/mflogo")
+         ((#:phases phases '())
+          `(modify-phases ,phases
+             (add-after 'unpack 'chdir
+               (lambda _
+                 (chdir "source/latex/mflogo") #t))
+             (add-after 'build 'build-font-metrics
+               (lambda* (#:key inputs #:allow-other-keys)
+                 (let ((root "../../..")
+                       (mf (assoc-ref inputs "texlive-metafont"))
+                       (kl (assoc-ref inputs "texlive-knuth-lib")))
+                   ;; Tell mf where to find mf.base
+                   (setenv "MFBASES"
+                           (string-append mf "/share/texmf-dist/web2c"))
+                   ;; Tell mf where to look for source files
+                   (setenv "MFINPUTS"
+                           (string-append root ":"
+                                          mf "/share/texmf-dist/metafont/base:"
+                                          kl "/share/texmf-dist/fonts/source/public/knuth-lib:"
+                                          root "/fonts/source/public/mflogo/"))
+                   (for-each (lambda (font)
+                               (format #t "building font ~a\n" font)
+                               (invoke "mf" "-progname=mf"
+                                       "-output-directory=build"
+                                       (string-append "\\"
+                                                      "mode:=ljfour; "
+                                                      "mag:=1; "
+                                                      "scrollmode; "
+                                                      "input " (basename font))))
+                             (find-files (string-append root
+                                                        "/fonts/source/public/mflogo/")
+                                         "\\.mf$")))
+                 #t))
+             (add-before 'install 'install-fonts
+               (lambda* (#:key outputs #:allow-other-keys)
+                 (let* ((out (assoc-ref outputs "out"))
+                        (tfm (string-append
+                              out "/share/texmf-dist/fonts/tfm/public/mflogo")))
+                   (for-each (lambda (file)
+                               (install-file file tfm)
+                               (delete-file file))
+                             (find-files "build" "\\.tfm"))
+                   #t)))))))
+      (native-inputs
+       `(("texlive-bin" ,texlive-bin)
+         ("texlive-metafont" ,texlive-metafont)
+         ("texlive-knuth-lib" ,texlive-knuth-lib)))
+      (home-page "http://www.ctan.org/pkg/mflogo")
+      (synopsis "LaTeX support for Metafont logo fonts")
+      (description
+       "This package provides LaTeX and font definition files to access the
 Knuthian mflogo fonts described in The Metafontbook and to typeset Metafont
 logos in LaTeX documents.")
-    (license license:lppl)))
+      (license license:lppl))))
+
+(define-public texlive-latex-mflogo
+  (deprecated-package "texlive-latex-mflogo" texlive-mflogo))
 
 (define-public texlive-mflogo-font
   (package
@@ -1110,22 +1254,11 @@ Taco Hoekwater.")
           `(modify-phases ,phases
              (add-before 'build 'build-fonts
                (lambda* (#:key inputs #:allow-other-keys)
-                 (let ((mf  (assoc-ref inputs "texlive-union"))
-                       (src (string-append (getcwd) "/fonts/source/public/amsfonts/")))
-                   ;; Make METAFONT reproducible
-                   (setenv "SOURCE_DATE_EPOCH" "1")
-                   ;; Tell mf where to find mf.base
-                   (setenv "MFBASES" (string-append mf "/share/texmf-dist/web2c"))
-                   ;; Tell mf where to look for source files
-                   (setenv "MFINPUTS"
-                           (string-append src ":"
-                                          src "/cmextra:"
-                                          src "/cyrillic:"
-                                          src "/dummy:"
-                                          src "/symbols:"
-                                          mf "/share/texmf-dist/metafont/base:"
-                                          (assoc-ref inputs "texlive-cm")
-                                          "/share/texmf-dist/fonts/source/public/cm")))
+                 ;; Allow self fonts sources and other resources to be
+                 ;; discovered.
+                 (setenv "GUIX_TEXMF" (string-append (getenv "GUIX_TEXMF")
+                                                     ":" (getcwd)))
+
                  (let ((build (string-append (getcwd) "/build-fonts")))
                    (mkdir-p build)
                    (with-directory-excursion "fonts/source/public/amsfonts"
@@ -1147,7 +1280,7 @@ Taco Hoekwater.")
                  ;; convert the afm files instead.
                  (let ((build (string-append (getcwd) "/build-fonts/euler")))
                    (mkdir build)
-                   (with-directory-excursion "fonts/afm/public/amsfonts/"
+                   (with-directory-excursion "fonts/afm/public/amsfonts/euler"
                      (for-each (lambda (font)
                                  (format #t "converting afm font ~a\n" (basename font ".afm"))
                                  (invoke "afm2tfm" font
@@ -1160,10 +1293,9 @@ Taco Hoekwater.")
                    ;; eufm10.afm to eufm8.pl, and then generate the tfm file from
                    ;; the pl file.
                    (setenv "TEXINPUTS"
-                           (string-append build "//:"
+                           (string-append ":" build "//:"
                                           (getcwd) "/fonts/afm/public/amsfonts//:"
-                                          (getcwd) "/source/latex/amsfonts//:"
-                                          (assoc-ref inputs "texlive-union") "//"))
+                                          (getcwd) "/source/latex/amsfonts//:"))
                    (with-directory-excursion build
                      (for-each (match-lambda
                                  (((target-base target-size)
@@ -1198,19 +1330,16 @@ Taco Hoekwater.")
 
                                  (("eurm6" 6) ("eurm7" 7))
                                  (("eurm8" 8) ("eurm10" 10))
-                                 (("eurm9" 9) ("eurm10" 10))))))
-                 #t))
+                                 (("eurm9" 9) ("eurm10" 10))))))))
              (add-after 'install 'install-generated-fonts
                (lambda* (#:key inputs outputs #:allow-other-keys)
                  (copy-recursively "build-fonts"
                                    (string-append
                                     (assoc-ref outputs "out")
-                                    "/share/texmf-dist/fonts/tfm/public/amsfonts"))
-                 #t))))))
+                                    "/share/texmf-dist/fonts/tfm/public/amsfonts"))))))))
       (native-inputs
-       `(("texlive-union" ,(texlive-union (list texlive-tex-fontinst-base
-                                                texlive-cm
-                                                texlive-metafont-base)))))
+       `(("texlive-updmap.cfg" ,(texlive-updmap.cfg
+                                 (list texlive-fontinst)))))
       (home-page "https://www.ctan.org/pkg/amsfonts")
       (synopsis "TeX fonts from the American Mathematical Society")
       (description
@@ -1274,7 +1403,7 @@ output encodings, and features generation of clean UTF-8 patterns.")
              ;; Build tfm font.
              (replace 'build
                (lambda* (#:key inputs #:allow-other-keys)
-                 (let ((mf (assoc-ref inputs "texlive-metafont-base")))
+                 (let ((mf (assoc-ref inputs "texlive-metafont")))
                    ;; Tell mf where to find mf.base
                    (setenv "MFBASES" (string-append mf "/share/texmf-dist/web2c"))
                    ;; Tell mf where to look for source files
@@ -1300,7 +1429,7 @@ output encodings, and features generation of clean UTF-8 patterns.")
                  #t))))))
       (native-inputs
        `(("texlive-bin" ,texlive-bin)
-         ("texlive-metafont-base" ,texlive-metafont-base)
+         ("texlive-metafont" ,texlive-metafont)
          ("texlive-cm" ,texlive-cm)))
       (home-page "https://www.ctan.org/pkg/etex")
       (synopsis "Extended version of TeX")
@@ -2210,7 +2339,7 @@ T1/EC and UTF-8 encodings.")
              (setenv "TFMFONTS"
                      (string-append (assoc-ref inputs "texlive-cm")
                                     "/share/texmf-dist/fonts/tfm/public/cm:"
-                                    (assoc-ref inputs "texlive-fonts-knuth-lib")
+                                    (assoc-ref inputs "texlive-knuth-lib")
                                     "/share/texmf-dist/fonts/tfm/public/knuth-lib"))
              ;; ...and find all tex files in this environment.
              (setenv "TEXINPUTS"
@@ -2264,7 +2393,7 @@ T1/EC and UTF-8 encodings.")
        ;; for a working "tex".
        ("texlive-tex-plain" ,texlive-tex-plain)
        ("texlive-cm" ,texlive-cm)
-       ("texlive-fonts-knuth-lib" ,texlive-fonts-knuth-lib)
+       ("texlive-knuth-lib" ,texlive-knuth-lib)
        ("texlive-hyphen-base" ,texlive-hyphen-base)))
     (home-page "https://ctan.org/pkg/hyph-utf8")
     (synopsis "Hyphenation patterns expressed in UTF-8")
@@ -2490,7 +2619,7 @@ formats.")
                                '(("texlive-etex" . "/etex")
                                  ("texlive-cm" . "/cm")
                                  ("texlive-fonts-latex" . "/latex-fonts")
-                                 ("texlive-fonts-knuth-lib" . "/knuth-lib")))
+                                 ("texlive-knuth-lib" . "/knuth-lib")))
                           ":"))
                  (let ((cwd (getcwd)))
                    (setenv "TEXINPUTS"
@@ -2540,7 +2669,10 @@ formats.")
                    (make-file-writable "web2c/fmtutil.cnf")
                    (substitute* "web2c/fmtutil.cnf"
                      (((string-append "^(" (string-join disabled-formats "|") ")") m)
-                      (string-append "#! " m))))
+                      (string-append "#! " m))
+                     (("translate-file=cp227")
+                      (format #f "translate-file=~a/share/texmf-dist/web2c/cp227"
+                              (assoc-ref inputs "texlive-kpathsea")))))
                  (invoke "fmtutil-sys" "--all"
                          "--fmtdir=web2c"
                          (string-append "--cnffile=web2c/fmtutil.cnf"))
@@ -2576,7 +2708,7 @@ formats.")
          ("texlive-kpathsea" ,texlive-kpathsea)
          ("texlive-cm" ,texlive-cm)
          ("texlive-fonts-latex" ,texlive-fonts-latex)
-         ("texlive-fonts-knuth-lib" ,texlive-fonts-knuth-lib)
+         ("texlive-knuth-lib" ,texlive-knuth-lib)
          ("texlive-luatexconfig"
           ,(texlive-origin
             "texlive-luatexconfig" (number->string %texlive-revision)
@@ -2853,29 +2985,103 @@ tables.")
 (define-public texlive-latex-xcolor
   (deprecated-package "texlive-latex-xcolor" texlive-xcolor))
 
-(define-public texlive-latex-hyperref
-  (package
-    (name "texlive-latex-hyperref")
-    (version "6.84a2")
-    ;; The sources in the TeX Live SVN repository do not contain hluatex.dtx,
-    ;; so we fetch the release from GitHub.
-    (source (origin
-              (method url-fetch)
-              (uri (string-append "https://github.com/ho-tex/hyperref/"
-                                  "archive/release-" version ".tar.gz"))
-              (file-name (string-append name "-" version ".tar.gz"))
-              (sha256
-               (base32
-                "1d3rmjgzh0025a1dza55zb6nzzlgd1y9snwx45wq1c1vf42m79h2"))))
-    (build-system texlive-build-system)
-    (arguments '(#:tex-directory "latex/hyperref"))
-    (propagated-inputs
-     `(("texlive-latex-oberdiek" ,texlive-latex-oberdiek) ; for ltxcmds.sty
-       ("texlive-latex-url" ,texlive-latex-url)))
-    (home-page "https://www.ctan.org/pkg/hyperref")
-    (synopsis "Extensive support for hypertext in LaTeX")
-    (description
-     "The @code{hyperref} package is used to handle cross-referencing commands
+(define-public texlive-xmltex
+  (let ((template (simple-texlive-package
+                   "texlive-xmltex"
+                   (list
+                    "/doc/otherformats/xmltex/"
+                    "/tex/xmltex/")
+                   (base32
+                    "023gv9axq05vwqz50fnkig24dzahwlc4raks2s8xc4pzrv2dv1zy"))))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:tex-directory _ #t)
+          "tex/xmltex/base")
+         ((#:phases phases '%standard-phases)
+          `(modify-phases ,phases
+             (add-before 'install 'generate-formats
+               (lambda* (#:key inputs #:allow-other-keys)
+                 (mkdir "web2c")
+                 (for-each (lambda (f)
+                             (copy-file f (basename f)))
+                           (find-files "tex" "\\.(ini|tex)$"))
+                 (invoke "fmtutil-sys" "--byfmt" "xmltex"
+                         "--fmtdir=web2c")
+                 (invoke "fmtutil-sys" "--byfmt" "pdfxmltex"
+                         "--fmtdir=web2c")))
+             (add-after 'install 'install-formats-and-wrappers
+               (lambda* (#:key inputs outputs #:allow-other-keys)
+                 (let* ((out (assoc-ref outputs "out"))
+                        (texlive-bin (assoc-ref inputs "texlive-bin"))
+                        (pdftex (string-append texlive-bin "/bin/pdftex"))
+                        (web2c (string-append out "/share/texmf-dist/web2c")))
+                   (mkdir-p web2c)
+                   (copy-recursively "web2c" web2c)
+                   ;; Create convenience command wrappers.
+                   (mkdir-p (string-append out "/bin"))
+                   (symlink pdftex (string-append out "/bin/xmltex"))
+                   (symlink pdftex (string-append out "/bin/pdfxmltex"))
+                   #t)))))))
+      (propagated-inputs
+       ;; The following fonts are propagated as a texlive-updmap.cfg as the font
+       ;; maps need to be recreated for the fonts to be usable.  They are
+       ;; required by xmltex through mlnames.sty and unicode.sty.
+       `(("texlive" ,(texlive-updmap.cfg
+                      (list
+                       texlive-amsfonts
+                       texlive-babel
+                       texlive-courier
+                       texlive-helvetic
+                       texlive-hyperref
+                       texlive-symbol
+                       texlive-tipa
+                       texlive-times
+                       texlive-zapfding
+                       ;; The following fonts, while not required, are used if
+                       ;; available:
+                       texlive-stmaryrd
+                       texlive-wasy)))))
+      (native-inputs
+       `(("texlive-tex-ini-files" ,texlive-tex-ini-files)))
+      (home-page "https://www.ctan.org/pkg/xmltex/")
+      (synopsis "Support for parsing XML documents")
+      (description "The package provides an implementation of a parser for
+documents matching the XML 1.0 and XML Namespace Recommendations.  Element and
+attribute names, as well as character data, may use any characters allowed in
+XML, using UTF-8 or a suitable 8-bit encoding.")
+      (license license:lppl1.0+))))        ;per xmltex/base/readme.txt
+
+(define-public texlive-hyperref
+  (let ((template (simple-texlive-package
+                   "texlive-hyperref"
+                   (list "/doc/latex/hyperref/"
+                         "/source/latex/hyperref/"
+                         ;; These files are not generated from the sources
+                         "/tex/latex/hyperref/hylatex.ltx"
+                         "/tex/latex/hyperref/minitoc-hyper.sty"
+                         "/tex/latex/hyperref/ntheorem-hyper.sty"
+                         "/tex/latex/hyperref/xr-hyper.sty")
+                   (base32
+                    "1074rnymyf7xj2ggajnijmy1p7avfjl216qyi86p38wg0qdf48zd"))))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:tex-directory _ #t)
+          "latex/hyperref")
+         ((#:phases phases)
+          `(modify-phases ,phases
+             (add-after 'unpack 'chdir
+               (lambda _ (chdir "source/latex/hyperref") #t))))))
+      (propagated-inputs
+       `(("texlive-oberdiek" ,texlive-oberdiek) ; for ltxcmds.sty
+         ("texlive-latex-url" ,texlive-latex-url)))
+      (home-page "https://www.ctan.org/pkg/hyperref")
+      (synopsis "Extensive support for hypertext in LaTeX")
+      (description
+       "The @code{hyperref} package is used to handle cross-referencing commands
 in LaTeX to produce hypertext links in the document.  The package provides
 backends for the @code{\\special} set defined for HyperTeX DVI processors; for
 embedded @code{pdfmark} commands for processing by Acrobat
@@ -2883,11 +3089,14 @@ Distiller (@code{dvips} and Y&Y's @code{dvipsone}); for Y&Y's @code{dviwindo};
 for PDF control within pdfTeX and @code{dvipdfm}; for TeX4ht; and for VTeX's
 pdf and HTML backends.  The package is distributed with the @code{backref} and
 @code{nameref} packages, which make use of the facilities of @code{hyperref}.")
-    (license license:lppl1.3+)))
+      (license license:lppl1.3+))))
 
-(define-public texlive-latex-oberdiek
+(define-public texlive-latex-hyperref
+  (deprecated-package "texlive-latex-hyperref" texlive-hyperref))
+
+(define-public texlive-oberdiek
   (package
-    (name "texlive-latex-oberdiek")
+    (name "texlive-oberdiek")
     (version (number->string %texlive-revision))
     (source (origin
               (method svn-fetch)
@@ -2917,6 +3126,9 @@ pdf and HTML backends.  The package is distributed with the @code{backref} and
 better accessibility support for PDF files; extensible chemists reaction
 arrows; record information about document class(es) used; and many more.")
     (license license:lppl1.3+)))
+
+(define-public texlive-latex-oberdiek
+  (deprecated-package "texlive-latex-oberdiek" texlive-oberdiek))
 
 (define-public texlive-latex-tools
   (package
@@ -3066,58 +3278,84 @@ programming tools and kernel sup­port.  Packages provided in this release are:
 @end enumerate\n")
     (license license:lppl1.3c+)))
 
-(define-public texlive-latex-fontspec
-  (package
-    (name "texlive-latex-fontspec")
-    (version (number->string %texlive-revision))
-    (source (origin
-              (method svn-fetch)
-              (uri (texlive-ref "latex" "fontspec"))
-              (file-name (string-append name "-" version "-checkout"))
-              (sha256
-               (base32
-                "1223cw029n6zff7pqpwbsq1x8v3w63smczkmnybqxkw5h2za8gbz"))))
-    (build-system texlive-build-system)
-    (arguments
-     '(#:tex-directory "latex/fontspec"
-       #:phases
-       (modify-phases %standard-phases
-         (add-after 'install 'install-default-fontspec.cfg
-           (lambda* (#:key outputs #:allow-other-keys)
-             (with-output-to-file
-                 (string-append (assoc-ref outputs "out")
-                                "/share/texmf-dist/tex/latex/fontspec/fontspec.cfg")
-               (lambda _
-                 (display "\
-%%% FONTSPEC.CFG %%%
-%
-% This configuration file sets up TeX Ligatures by default for all fonts loaded
-% with `\\setmainfont` and `\\setsansfont`.
-%
-% In addition, `\\setmonofont` has default features to enforce \"monospace\"
-% settings with regard to space stretchability and shrinkability.
-
-\\defaultfontfeatures
- [\\rmfamily,\\sffamily]
- {Ligatures=TeX}
-
-\\defaultfontfeatures
- [\\ttfamily]
- {WordSpace={1,0,0},
-  HyphenChar=None,
-  PunctuationSpace=WordSpace}
-")))
-             #t)))))
-    (propagated-inputs
-     `(("texlive-latex-l3packages" ,texlive-latex-l3packages)))
-    (home-page "https://www.ctan.org/pkg/fontspec")
-    (synopsis "Advanced font selection in XeLaTeX and LuaLaTeX")
-    (description
-     "Fontspec is a package for XeLaTeX and LuaLaTeX.  It provides an
+(define-public texlive-fontspec
+  (let ((template (simple-texlive-package
+                   "texlive-fontspec"
+                   (list "/doc/latex/fontspec/"
+                         "/source/latex/fontspec/"
+                         "/tex/latex/fontspec/fontspec.cfg")
+                   (base32
+                    "1ksqhxlnqia4v85hbx0bw58cw77wfdhs33n1a1qmczd4b3zg4wp9"))))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:tex-directory _ #t)
+          "latex/fontspec")
+         ((#:phases phases)
+          `(modify-phases ,phases
+             (add-after 'unpack 'chdir
+               (lambda _ (chdir "source/latex/fontspec/") #t))))))
+      (propagated-inputs
+       `(("texlive-latex-l3packages" ,texlive-latex-l3packages)))
+      (home-page "https://www.ctan.org/pkg/fontspec")
+      (synopsis "Advanced font selection in XeLaTeX and LuaLaTeX")
+      (description
+       "Fontspec is a package for XeLaTeX and LuaLaTeX.  It provides an
 automatic and unified interface to feature-rich AAT and OpenType fonts through
 the NFSS in LaTeX running on XeTeX or LuaTeX engines.  The package requires
 the l3kernel and xparse bundles from the LaTeX 3 development team.")
-    (license license:lppl1.3+)))
+      (license license:lppl1.3+))))
+
+(define-public texlive-latex-fontspec
+  (deprecated-package "texlive-latex-fontspec" texlive-fontspec))
+
+(define-public texlive-l3build
+  (let ((template (simple-texlive-package
+                   "texlive-l3build"
+                   (list "/doc/latex/l3build/"
+                         "/doc/man/man1/l3build.1"
+                         "/scripts/l3build/"
+                         "/tex/latex/l3build/"
+                         ;; TODO: The dtx file builds only the documentation.
+                         ;; We avoid this for a simpler package definition,
+                         ;; but it may be possible to exclude
+                         ;; /doc/latex/l3build and the man page in the future.
+                         "/source/latex/l3build/")
+                   (base32
+                    "009dccv5lq7bq13431l4ihmagxvb3j1pb5bhidsbiyxi3wvi8y97")
+                   #:trivial? #t)))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:phases phases)
+          `(modify-phases ,phases
+             (add-after 'install 'patch-shebangs-again
+               (lambda* (#:key inputs outputs #:allow-other-keys)
+                 ;; XXX: Since the 'patch-shebangs' phase cannot change the
+                 ;; original source files patch the shebangs again here.
+                 (let* ((coreutils (assoc-ref inputs "coreutils"))
+                        (texlive-bin (assoc-ref inputs "texlive-bin"))
+                        (path (list (string-append coreutils "/bin")
+                                    (string-append texlive-bin "/bin"))))
+                   (for-each (lambda (file)
+                               (format #t "~a~%" file)
+                               (patch-shebang file path))
+                             (find-files (assoc-ref outputs "out")))
+                   #t)))))))
+      (inputs
+       `(("coreutils" ,coreutils)
+         ("texlive-bin" ,texlive-bin)))
+      (home-page "https://github.com/latex3/luaotfload")
+      (synopsis "Testing and building system for LaTeX")
+      (description
+       "The l3build module is designed to support the development of
+high-quality LaTeX code by providing: a unit testing system, automated
+typesetting of code sources, and a reliable packaging system for CTAN
+releases.  The bundle consists of a Lua script to run the tasks and a
+@code{.tex} file which provides the testing environment.")
+      (license license:lppl1.3c+))))
 
 ;; The SVN directory contains little more than a dtx file that generates three
 ;; of the many lua files that should be installed as part of this package.
@@ -3157,97 +3395,38 @@ this bundle for use independent of ConTeXt.")
     ;; GPL version 2 only
     (license license:gpl2)))
 
-(define-public texlive-luatex-luaotfload
-  (package
-    (name "texlive-luatex-luaotfload")
-    (version "2.8-fix-2")
-    ;; The release tarball does not contain all source files.
-    (source (origin
-              (method git-fetch)
-              (uri (git-reference
-                    (url "https://github.com/lualatex/luaotfload")
-                    (commit (string-append "v" version))))
-              (file-name (git-file-name name version))
-              (sha256
-               (base32
-                "0l5l7iq3dxcxl65qaghcpjg27yd9iw1sxa8pnd7xlvlm09dhfdnf"))))
-    (build-system gnu-build-system)
-    (arguments
-     `(#:make-flags
-       (list (string-append "DESTDIR="
-                            (assoc-ref %outputs "out")
-                            "/share/texmf-dist")
-             "all")
-       #:parallel-build? #f ; not supported
-       #:phases
-       (modify-phases %standard-phases
-         (replace 'configure
-           (lambda* (#:key inputs #:allow-other-keys)
-             (substitute* "doc/Makefile"
-               (("rst2man") "rst2man.py")
-               ;; Don't build the PDF.  This requires more of LaTeX.
-               (("\\$\\(DOCPDF\\)") ""))
-
-             (substitute* "Makefile"
-               ;; We don't build the PDF, so don't attempt to install it.
-               (("cp \\$\\(RESOURCES\\) \\$\\(DOCPDF\\)")
-                "cp $(RESOURCES)")
-               (("= \\$\\(DOCPDF\\)") "= ")
-               ;; Fix name of fontloader file
-               (("^LOADER.*= \\$\\(BUILDDIR\\)/fontloader-\\$\\(shell date \\+%F\\).lua")
-                "LOADER = $(BUILDDIR)/fontloader.lua"))
-
-             (mkdir "build")
-
-             ;; Don't download this file.
-             (copy-file (assoc-ref inputs "glyphlist")
-                        "build/glyphlist.txt")
-
-             ;; Don't use git
-             (let ((notes
-                    `((committer . "Philipp Gesang <phg@phi-gamma.net>")
-                      (description . ,version)
-                      (loader . "fontloader.lua")
-                      (revision . "ad480924393fffa2896156e1a32c22f5c61120dd")
-                      (timestamp . "2019-01-01 00:00:00 +0000"))))
-               (substitute* "scripts/mkstatus"
-                 (("local notes.*=.*")
-                  (string-append "local notes = {"
-                                 (string-join
-                                  (map (lambda (entry)
-                                         (format "[\"~a\"]=\"~a\","
-                                                 (symbol->string (car entry))
-                                                 (cdr entry)))
-                                       notes))
-                                 "}"))))
-             #t)))))
-    (native-inputs
-     `(("zip" ,zip)
-       ("unzip" ,unzip)
-       ("graphviz" ,graphviz)
-       ("lualatex" ,(texlive-union (list texlive-luatex-lualibs
-                                         texlive-context-base)))
-       ("python-docutils" ,python-docutils)
-       ("glyphlist"
-        ,(origin
-           (method url-fetch)
-           (uri (string-append "https://raw.githubusercontent.com/adobe-type-tools/"
-                               "agl-aglfn/b2a04cb906f9257cc06a2fe0ad4b3d663bc02136/"
-                               "glyphlist.txt"))
-           (sha256
-            (base32 "1s6svfw23rqzdvflv8frgd4xrwvrmsj8szwzqgcd39dp9rpjafjp"))))))
-    (propagated-inputs
-     `(("texlive-luatex-lualibs" ,texlive-luatex-lualibs)))
-    (home-page "https://github.com/lualatex/luaotfload")
-    (synopsis "OpenType font loader for LuaTeX")
-    (description
-     "Luaotfload is an adaptation of the ConTeXt font loading system for the
+;; TODO: We should be able to build this from the sources on Github with
+;; texlive-l3build, but I haven't been able to get it to work.
+(define-public texlive-luaotfload
+  (let ((template (simple-texlive-package
+                   "texlive-luaotfload"
+                   (list "/doc/luatex/luaotfload/"
+                         "/doc/man/man1/luaotfload-tool.1"
+                         "/doc/man/man5/luaotfload.conf.5"
+                         "/source/luatex/luaotfload/fontloader-reference-load-order.lua"
+                         "/source/luatex/luaotfload/fontloader-reference-load-order.tex"
+                         "/scripts/luaotfload/luaotfload-tool.lua"
+                         "/tex/luatex/luaotfload/")
+                   (base32
+                    "04xlcc9k56kf9460dzxifnxbv5bkv7kcp9ijiqi054miybw1pymr")
+                   #:trivial? #t)))
+    (package
+      (inherit template)
+      (propagated-inputs
+       `(("texlive-luatex-lualibs" ,texlive-luatex-lualibs)))
+      (home-page "https://github.com/lualatex/luaotfload")
+      (synopsis "OpenType font loader for LuaTeX")
+      (description
+       "Luaotfload is an adaptation of the ConTeXt font loading system for the
 Plain and LaTeX formats.  It allows OpenType fonts to be loaded with font
 features accessible using an extended font request syntax while providing
 compatibilitywith XeTeX.  By indexing metadata in a database it facilitates
 loading fonts by their proper names instead of file names.")
-    ;; GPL version 2 only
-    (license license:gpl2)))
+      ;; GPL version 2 only
+      (license license:gpl2))))
+
+(define-public texlive-luatex-luaotfload
+  (deprecated-package "texlive-luatex-luaotfload" texlive-luaotfload))
 
 (define-public texlive-latex-amsmath
   (package
@@ -3278,64 +3457,86 @@ mathematics, and @code{ntheoremntheorem}, for specifying theorem (and similar)
 definitions.")
     (license license:lppl1.3c+)))
 
-(define-public texlive-latex-amscls
-  (package
-    (name "texlive-latex-amscls")
-    (version (number->string %texlive-revision))
-    (source (origin
-              (method svn-fetch)
-              (uri (texlive-ref "latex" "amscls"))
-              (file-name (string-append name "-" version "-checkout"))
-              (sha256
-               (base32
-                "0c2j9xh4qpi0x1vvcxdjxq6say0zhyr569fryi5cmhp8bclh4kca"))))
-    (build-system texlive-build-system)
-    (arguments
-     `(#:tex-directory "latex/amscls"))
-    (home-page "https://www.ctan.org/pkg/amscls")
-    (synopsis "AMS document classes for LaTeX")
-    (description
-     "This bundle contains three AMS classes: @code{amsartamsart} (for writing
+(define-public texlive-amscls
+  (let ((template (simple-texlive-package
+                   "texlive-amscls"
+                   (list "/doc/latex/amscls/"
+                         "/source/latex/amscls/"
+                         "/bibtex/bst/amscls/")
+                   (base32
+                    "1mv96i5372257zaciv06n1wwa7v09q0fa9pbq9kck826a0syidvs"))))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:tex-directory _ #t)
+          "latex/amscls")
+         ((#:phases phases)
+          `(modify-phases ,phases
+             (add-after 'unpack 'chdir
+               (lambda _ (chdir "source/latex/amscls/") #t))))))
+      (home-page "https://www.ctan.org/pkg/amscls")
+      (synopsis "AMS document classes for LaTeX")
+      (description
+       "This bundle contains three AMS classes: @code{amsartamsart} (for writing
 articles for the AMS), @code{amsbookamsbook} (for books) and
 @code{amsprocamsproc} (for proceedings), together with some supporting
 material.  The material is made available as part of the AMS-LaTeX
 distribution.")
-    (license license:lppl1.3c+)))
+      (license license:lppl1.3c+))))
 
-(define-public texlive-latex-babel
-  (package
-    (name "texlive-latex-babel")
-    (version (number->string %texlive-revision))
-    (source (origin
-              (method svn-fetch)
-              (uri (texlive-ref "latex" "babel"))
-              (file-name (string-append name "-" version "-checkout"))
-              (sha256
-               (base32
-                "1rwqq841i1rxywymzwkw0cw2yhgvxwjx5mgygfasvypwrwll6f6s"))))
-    (build-system texlive-build-system)
-    (arguments
-     '(#:tex-directory "generic/babel"
-       #:phases
-       (modify-phases %standard-phases
-         ;; This package tries to produce babel.aux twice but refuses to
-         ;; overwrite the first one.
-         (add-before 'build 'fix-ins
-           (lambda _
-             (substitute* "babel.ins"
-               (("askonceonly") "askforoverwritefalse"))
-             #t)))))
-    (home-page "https://www.ctan.org/pkg/babel")
-    (synopsis "Multilingual support for Plain TeX or LaTeX")
-    (description
-     "The package manages culturally-determined typographical (and other)
+(define-public texlive-latex-amscls
+  (deprecated-package "texlive-latex-amscls" texlive-amscls))
+
+(define-public texlive-babel
+  (let ((template (simple-texlive-package
+                   "texlive-babel"
+                   (list "/doc/latex/babel/"
+                         "/source/latex/babel/"
+                         "/makeindex/babel/")
+                   (base32
+                    "07k9igpwa8sjxlmyxmcbffl8833qhrs34h70kgmakiix5jycznsd"))))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:tex-directory _ #t)
+          "generic/babel")
+         ((#:phases phases)
+          `(modify-phases ,phases
+             (add-after 'unpack 'chdir
+               (lambda _ (chdir "source/latex/babel/") #t))
+             ;; This package tries to produce babel.aux twice but refuses to
+             ;; overwrite the first one.
+             (add-before 'build 'fix-ins
+               (lambda _
+                 (substitute* "babel.ins"
+                   (("askonceonly") "askforoverwritefalse"))
+                 #t))
+             (add-after 'install 'install-locales
+               (lambda* (#:key outputs #:allow-other-keys)
+                 (let ((locale-directory
+                        (string-append (assoc-ref outputs "out")
+                                       "/share/texmf-dist/tex/generic/babel/locale/")))
+                   (mkdir-p locale-directory)
+                   (invoke "unzip" "locale.zip" "-d"
+                           locale-directory))))))))
+      (native-inputs
+       `(("unzip" ,unzip)))
+      (home-page "https://www.ctan.org/pkg/babel")
+      (synopsis "Multilingual support for Plain TeX or LaTeX")
+      (description
+       "The package manages culturally-determined typographical (and other)
 rules, and hyphenation patterns for a wide range of languages.  A document may
 select a single language to be supported, or it may select several, in which
 case the document may switch from one language to another in a variety of
 ways.  Babel uses contributed configuration files that provide the detail of
 what has to be done for each language.  Users of XeTeX are advised to use the
 polyglossia package rather than Babel.")
-    (license license:lppl1.3+)))
+      (license license:lppl1.3+))))
+
+(define-public texlive-latex-babel
+  (deprecated-package "texlive-latex-babel" texlive-babel))
 
 (define-public texlive-generic-babel-english
   (package
@@ -3405,30 +3606,133 @@ T2* and X2 encodings. These encodings cover (between them) pretty much every
 language that is written in a Cyrillic alphabet.")
     (license license:lppl1.3c+)))
 
-(define-public texlive-latex-psnfss
-  (package
-    (name "texlive-latex-psnfss")
-    (version (number->string %texlive-revision))
-    (source (origin
-              (method svn-fetch)
-              (uri (texlive-ref "latex" "psnfss"))
-              (file-name (string-append name "-" version "-checkout"))
-              (sha256
-               (base32
-                "1920dcq8613yzprasbg80fh4fcjcidvvl54wkx438nimyxcri7qz"))))
-    (build-system texlive-build-system)
-    (arguments '(#:tex-directory "latex/psnfss"))
-    (home-page "https://www.ctan.org/pkg/psnfss")
-    (synopsis "Font support for common PostScript fonts")
-    (description
-     "The PSNFSS collection includes a set of files that provide a complete
+(define-public texlive-psnfss
+  (let ((template (simple-texlive-package
+                   "texlive-psnfss"
+                   (list "/doc/latex/psnfss/"
+                         "/source/latex/psnfss/"
+                         "/fonts/map/dvips/psnfss/"
+
+                         ;; Only the .sty files are generated from the sources.
+                         "/tex/latex/psnfss/8rbch.fd"
+                         "/tex/latex/psnfss/8rpag.fd"
+                         "/tex/latex/psnfss/8rpbk.fd"
+                         "/tex/latex/psnfss/8rpcr.fd"
+                         "/tex/latex/psnfss/8rphv.fd"
+                         "/tex/latex/psnfss/8rpnc.fd"
+                         "/tex/latex/psnfss/8rppl.fd"
+                         "/tex/latex/psnfss/8rptm.fd"
+                         "/tex/latex/psnfss/8rput.fd"
+                         "/tex/latex/psnfss/8rpzc.fd"
+                         "/tex/latex/psnfss/omlbch.fd"
+                         "/tex/latex/psnfss/omlpag.fd"
+                         "/tex/latex/psnfss/omlpbk.fd"
+                         "/tex/latex/psnfss/omlpcr.fd"
+                         "/tex/latex/psnfss/omlphv.fd"
+                         "/tex/latex/psnfss/omlpnc.fd"
+                         "/tex/latex/psnfss/omlppl.fd"
+                         "/tex/latex/psnfss/omlptm.fd"
+                         "/tex/latex/psnfss/omlptmcm.fd"
+                         "/tex/latex/psnfss/omlput.fd"
+                         "/tex/latex/psnfss/omlpzc.fd"
+                         "/tex/latex/psnfss/omlzplm.fd"
+                         "/tex/latex/psnfss/omlzpple.fd"
+                         "/tex/latex/psnfss/omlztmcm.fd"
+                         "/tex/latex/psnfss/omsbch.fd"
+                         "/tex/latex/psnfss/omspag.fd"
+                         "/tex/latex/psnfss/omspbk.fd"
+                         "/tex/latex/psnfss/omspcr.fd"
+                         "/tex/latex/psnfss/omsphv.fd"
+                         "/tex/latex/psnfss/omspnc.fd"
+                         "/tex/latex/psnfss/omsppl.fd"
+                         "/tex/latex/psnfss/omsptm.fd"
+                         "/tex/latex/psnfss/omsput.fd"
+                         "/tex/latex/psnfss/omspzc.fd"
+                         "/tex/latex/psnfss/omspzccm.fd"
+                         "/tex/latex/psnfss/omszplm.fd"
+                         "/tex/latex/psnfss/omszpple.fd"
+                         "/tex/latex/psnfss/omsztmcm.fd"
+                         "/tex/latex/psnfss/omxpsycm.fd"
+                         "/tex/latex/psnfss/omxzplm.fd"
+                         "/tex/latex/psnfss/omxzpple.fd"
+                         "/tex/latex/psnfss/omxztmcm.fd"
+                         "/tex/latex/psnfss/ot1bch.fd"
+                         "/tex/latex/psnfss/ot1pag.fd"
+                         "/tex/latex/psnfss/ot1pbk.fd"
+                         "/tex/latex/psnfss/ot1pcr.fd"
+                         "/tex/latex/psnfss/ot1phv.fd"
+                         "/tex/latex/psnfss/ot1pnc.fd"
+                         "/tex/latex/psnfss/ot1ppl.fd"
+                         "/tex/latex/psnfss/ot1pplj.fd"
+                         "/tex/latex/psnfss/ot1pplx.fd"
+                         "/tex/latex/psnfss/ot1ptm.fd"
+                         "/tex/latex/psnfss/ot1ptmcm.fd"
+                         "/tex/latex/psnfss/ot1put.fd"
+                         "/tex/latex/psnfss/ot1pzc.fd"
+                         "/tex/latex/psnfss/ot1zplm.fd"
+                         "/tex/latex/psnfss/ot1zpple.fd"
+                         "/tex/latex/psnfss/ot1ztmcm.fd"
+                         "/tex/latex/psnfss/t1bch.fd"
+                         "/tex/latex/psnfss/t1pag.fd"
+                         "/tex/latex/psnfss/t1pbk.fd"
+                         "/tex/latex/psnfss/t1pcr.fd"
+                         "/tex/latex/psnfss/t1phv.fd"
+                         "/tex/latex/psnfss/t1pnc.fd"
+                         "/tex/latex/psnfss/t1ppl.fd"
+                         "/tex/latex/psnfss/t1pplj.fd"
+                         "/tex/latex/psnfss/t1pplx.fd"
+                         "/tex/latex/psnfss/t1ptm.fd"
+                         "/tex/latex/psnfss/t1put.fd"
+                         "/tex/latex/psnfss/t1pzc.fd"
+                         "/tex/latex/psnfss/ts1bch.fd"
+                         "/tex/latex/psnfss/ts1pag.fd"
+                         "/tex/latex/psnfss/ts1pbk.fd"
+                         "/tex/latex/psnfss/ts1pcr.fd"
+                         "/tex/latex/psnfss/ts1phv.fd"
+                         "/tex/latex/psnfss/ts1pnc.fd"
+                         "/tex/latex/psnfss/ts1ppl.fd"
+                         "/tex/latex/psnfss/ts1pplj.fd"
+                         "/tex/latex/psnfss/ts1pplx.fd"
+                         "/tex/latex/psnfss/ts1ptm.fd"
+                         "/tex/latex/psnfss/ts1put.fd"
+                         "/tex/latex/psnfss/ts1pzc.fd"
+                         "/tex/latex/psnfss/ufplm.fd"
+                         "/tex/latex/psnfss/ufplmbb.fd"
+                         "/tex/latex/psnfss/upsy.fd"
+                         "/tex/latex/psnfss/upzd.fd")
+                   (base32
+                    "1ql4gidwf5m5gwcwwmx7vj60lj4xygw02pm5mzin49nlwsa1vbnv"))))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:tex-directory _ #t)
+          "latex/psnfss")
+         ((#:phases phases)
+          `(modify-phases ,phases
+             (add-after 'unpack 'chdir
+               (lambda _
+                 (chdir "source/latex/psnfss") #t))))))
+      (native-inputs
+       `(("texlive-cm" ,texlive-cm)))
+      (home-page "https://www.ctan.org/pkg/psnfss")
+      (synopsis "Font support for common PostScript fonts")
+      (description
+       "The PSNFSS collection includes a set of files that provide a complete
 working setup of the LaTeX font selection scheme (NFSS2) for use with common
-PostScript fonts.  It covers the so-called \"Base\" fonts (which are built
-into any Level 2 PostScript printing device and the Ghostscript interpreter)
-and a number of free fonts.  It provides font definition files, macros and
-font metrics.  The bundle as a whole is part of the LaTeX required set of
-packages.")
-    (license license:lppl1.2+)))
+PostScript fonts.  The base set of text fonts covered by PSNFSS includes the
+AvantGarde, Bookman, Courier, Helvetica, New Century Schoolbook, Palatino,
+Symbol, Times Roman and Zapf Dingbats fonts.  In addition, the fonts Bitstream
+Charter and Adobe Utopia are covered.  Separate packages are provided to load
+each font for use as the main text font.  The package @code{helvet} allows
+Helvetica to be loaded with its size scaled to something more appropriate for
+use as a Sans-Serif font to match Times, while @code{pifont} provides the
+means to select single glyphs from symbol fonts.  The bundle as a whole is
+part of the LaTeX required set of packages.")
+      (license license:lppl1.2+))))
+
+(define-public texlive-latex-psnfss
+  (deprecated-package "texlive-latex-psnfss" texlive-psnfss))
 
 ;; For user profiles
 (define-public texlive-base
@@ -3437,17 +3741,18 @@ packages.")
                 texlive-dvips
                 texlive-fontname
                 texlive-cm
+                texlive-cm-super ; to avoid bitmap fonts
                 texlive-fonts-latex
-                texlive-metafont-base
+                texlive-metafont
                 texlive-latex-base
                 ;; LaTeX packages from the "required" set.
                 texlive-latex-amsmath
-                texlive-latex-amscls
-                texlive-latex-babel
+                texlive-amscls
+                texlive-babel
                 texlive-generic-babel-english
                 texlive-latex-cyrillic
                 texlive-latex-graphics
-                texlive-latex-psnfss
+                texlive-psnfss
                 texlive-latex-tools
                 texlive-tetex)))
     (package
@@ -3475,132 +3780,86 @@ It includes little more than the required set of LaTeX packages.")
                      '()
                      default-packages)))))
 
-;; For use in package definitions only
-(define-public texlive-union
+;;; TODO: Add a TeX Live profile hook computing fonts maps (and others?)
+;;; configuration from the packages in the profile, similar to what's done
+;;; below.
+(define-public texlive-updmap.cfg
   (lambda* (#:optional (packages '()))
-    "Return 'texlive-union' package which is a union of PACKAGES and the
-standard LaTeX packages."
+    "Return a 'texlive-updmap.cfg' package which contains the fonts map
+configuration of a base set of packages plus PACKAGES."
     (let ((default-packages (match (package-propagated-inputs texlive-base)
                               (((labels packages) ...) packages))))
-      (package (inherit texlive-base)
-        (name "texlive-union")
-        (build-system trivial-build-system)
+      (package
+        (version (number->string %texlive-revision))
+        (source (origin
+                  (method url-fetch)
+                  (uri (string-append "https://tug.org/svn/texlive/tags/"
+                                      %texlive-tag
+                                      "/Master/texmf-dist/web2c/updmap.cfg"
+                                      "?revision=" version))
+                  (file-name "updmap.cfg")
+                  (sha256
+                   (base32
+                    "0faqknqxs80qp9ywk0by5k85s0yalg97c4lja4q56lsyblrr4j7i"))))
+        (name "texlive-updmap.cfg")
+        (build-system copy-build-system)
         (arguments
-         '(#:modules ((guix build union)
+         '(#:modules ((guix build copy-build-system)
                       (guix build utils)
-                      (guix build texlive-build-system)
-                      (guix build gnu-build-system)
-                      (guix build gremlin)
-                      (guix elf))
-           #:builder
-           (begin
-             (use-modules (ice-9 match)
-                          (ice-9 popen)
-                          (srfi srfi-26)
-                          (guix build union)
-                          (guix build utils)
-                          (guix build texlive-build-system))
-             (let* ((out       (assoc-ref %outputs "out"))
-                    (texmf.cnf (string-append out "/share/texmf-dist/web2c/texmf.cnf")))
-               ;; Build a modifiable union of all inputs (but exclude bash and
-               ;; the updmap.cfg file)
-               (match (filter (match-lambda
-                                ((name . _)
-                                 (not (member name '("bash"
-                                                     "coreutils"
-                                                     "sed"
-                                                     "updmap.cfg")))))
-                              %build-inputs)
-                 (((names . directories) ...)
-                  (union-build (assoc-ref %outputs "out")
-                               directories
-                               #:create-all-directories? #t
-                               #:log-port (%make-void-port "w"))))
+                      (ice-9 popen)
+                      (ice-9 textual-ports))
+           #:install-plan '(("updmap.cfg" "share/texmf-config/web2c/")
+                            ("map" "share/texmf-dist/fonts/map"))
+           #:phases
+           (modify-phases %standard-phases
+             (add-before 'install 'regenerate-updmap.cfg
+               (lambda _
+                 (make-file-writable "updmap.cfg")
 
-               ;; The configuration file "texmf.cnf" is provided by the
-               ;; "texlive-bin" package.  We take it and override only the
-               ;; setting for TEXMFROOT and TEXMF.  This file won't be consulted
-               ;; by default, though, so we still need to set TEXMFCNF.
-               (substitute* texmf.cnf
-                 (("^TEXMFROOT = .*")
-                  (string-append "TEXMFROOT = " out "/share\n"))
-                 (("^TEXMF = .*")
-                  "TEXMF = $TEXMFROOT/share/texmf-dist\n"))
-               (setenv "PATH" (string-append
-                               (assoc-ref %build-inputs "bash") "/bin:"
-                               (assoc-ref %build-inputs "coreutils") "/bin:"
-                               (assoc-ref %build-inputs "sed") "/bin:"
-                               (string-append out "/bin")))
-               (for-each
-                (cut wrap-program <>
-                     `("TEXMFCNF" ":" suffix (,(dirname texmf.cnf)))
-                     `("TEXMF"    ":" suffix (,(string-append out "/share/texmf-dist"))))
-                (find-files (string-append out "/bin") ".*"))
-
-               ;; Remove invalid maps from config file.
-               (let ((web2c (string-append out "/share/texmf-config/web2c/"))
-                     (maproot (string-append out "/share/texmf-dist/fonts/map/")))
-                 (mkdir-p web2c)
-                 (copy-file
-                  (assoc-ref %build-inputs "updmap.cfg")
-                  (string-append web2c "updmap.cfg"))
-                 (make-file-writable (string-append web2c "updmap.cfg"))
-
+                 ;; Disable unavailable map files.
                  (let* ((port (open-pipe* OPEN_WRITE "updmap-sys"
                                           "--syncwithtrees"
                                           "--nohash"
-                                          (string-append "--cnffile=" web2c "updmap.cfg"))))
+                                          "--cnffile" "updmap.cfg")))
                    (display "Y\n" port)
                    (when (not (zero? (status:exit-val (close-pipe port))))
                      (error "failed to filter updmap.cfg")))
+
+                 ;; Set TEXMFSYSVAR to a sane and writable value; updmap fails
+                 ;; if it cannot create its log file there.
+                 (setenv "TEXMFSYSVAR" (getcwd))
+
                  ;; Generate maps.
                  (invoke "updmap-sys"
-                         (string-append "--cnffile=" web2c "updmap.cfg")
-                         (string-append "--dvipdfmxoutputdir="
-                                        maproot "dvipdfmx/updmap/")
-                         (string-append "--dvipsoutputdir="
-                                        maproot "dvips/updmap/")
-                         (string-append "--pdftexoutputdir="
-                                        maproot "pdftex/updmap/"))
-                 ;; Having this file breaks all file lookups later.
-                 (delete-file (string-append out "/share/texmf-dist/ls-R")))
-               #t))))
-        (inputs
-         `(("bash" ,bash)
-           ,@(map (lambda (package)
-                    (list (package-name package) package))
-                  (append default-packages packages))))
-        (native-inputs
-         `(("coreutils" ,coreutils)
-           ("sed" ,sed)
-           ("updmap.cfg"
-            ,(origin
-               (method url-fetch)
-               (uri (string-append "https://tug.org/svn/texlive/tags/"
-                                   %texlive-tag "/Master/texmf-dist/web2c/updmap.cfg"
-                                   "?revision=" (number->string %texlive-revision)))
-               (file-name (string-append "updmap.cfg-"
-                                         (number->string %texlive-revision)))
-               (sha256
-                (base32
-                 "0faqknqxs80qp9ywk0by5k85s0yalg97c4lja4q56lsyblrr4j7i"))))))
+                         "--cnffile"           "updmap.cfg"
+                         "--dvipdfmxoutputdir" "map/dvipdfmx/updmap/"
+                         "--dvipsoutputdir"    "map/dvips/updmap/"
+                         "--pdftexoutputdir"   "map/pdftex/updmap/"))))))
+        (propagated-inputs (map (lambda (package)
+                                  (list (package-name package) package))
+                                (append default-packages packages)))
         (home-page (package-home-page texlive-bin))
-        (synopsis "Union of TeX Live packages")
-        (description "This package provides a subset of the TeX Live
-distribution.")
-        (license (fold (lambda (package result)
-                         (match (package-license package)
-                           ((lst ...)
-                            (append lst result))
-                           ((? license:license? license)
-                            (cons license result))))
-                       '()
-                       (append default-packages packages)))))))
+        (synopsis "TeX Live fonts map configuration")
+        (description "This package contains the fonts map configuration file
+generated for the base TeX Live packages as well as, optionally, user-provided
+ones.")
+        (license (delete-duplicates
+                  (fold (lambda (package result)
+                          (match (package-license package)
+                            ((lst ...)
+                             (append lst result))
+                            ((? license:license? license)
+                             (cons license result))))
+                        '()
+                        (append default-packages packages))))))))
+
+;;; Deprecated.
+(define texlive-union texlive-updmap.cfg)
 
 ;; For use in package definitions only
 (define-public texlive-tiny
   (package
-    (inherit (texlive-union))
+    (inherit (texlive-updmap.cfg))
     (name "texlive-tiny")
     (description "This is a very limited subset of the TeX Live distribution.
 It includes little more than the required set of LaTeX packages.")))
@@ -3970,7 +4229,7 @@ rotated.")
        ("texlive-latex-graphics" ,texlive-latex-graphics)
        ("texlive-latex-ifplatform" ,texlive-latex-ifplatform)
        ("texlive-latex-l3kernel" ,texlive-latex-l3kernel) ; for expl3
-       ("texlive-latex-oberdiek" ,texlive-latex-oberdiek)
+       ("texlive-oberdiek" ,texlive-oberdiek)
        ("texlive-latex-psfrag" ,texlive-latex-psfrag)
        ("texlive-latex-tools" ,texlive-latex-tools) ; for shellesc
        ("texlive-latex-trimspaces" ,texlive-latex-trimspaces)
@@ -4287,7 +4546,7 @@ BibLaTeX, and is considered experimental.")
     (build-system texlive-build-system)
     (arguments '(#:tex-directory "latex/geometry"))
     (propagated-inputs
-     `(("texlive-latex-oberdiek" ,texlive-latex-oberdiek))) ;for ifpdf
+     `(("texlive-oberdiek" ,texlive-oberdiek))) ;for ifpdf
     (home-page "https://www.ctan.org/pkg/geometry")
     (synopsis "Flexible and complete interface to document dimensions")
     (description
@@ -4771,7 +5030,7 @@ in SGML; use maths minus in text as appropriate; simple Young tableaux.")
          (delete 'configure)
          (replace 'build
            (lambda* (#:key inputs #:allow-other-keys)
-             (let ((mf (assoc-ref inputs "texlive-metafont-base")))
+             (let ((mf (assoc-ref inputs "texlive-metafont")))
                ;; Tell mf where to find mf.base
                (setenv "MFBASES" (string-append mf "/share/texmf-dist/web2c"))
                ;; Tell mf where to look for source files
@@ -4806,7 +5065,7 @@ in SGML; use maths minus in text as appropriate; simple Young tableaux.")
                #t))))))
     (native-inputs
      `(("texlive-bin" ,texlive-bin)
-       ("texlive-metafont-base" ,texlive-metafont-base)
+       ("texlive-metafont" ,texlive-metafont)
        ("texlive-cm" ,texlive-cm)))
     (home-page "https://www.ctan.org/pkg/ec")
     (synopsis "Computer modern fonts in T1 and TS1 encodings")
@@ -4988,7 +5247,7 @@ Adobe's basic set.")
          (delete 'configure)
          (replace 'build
            (lambda* (#:key inputs #:allow-other-keys)
-             (let ((mf (assoc-ref inputs "texlive-metafont-base")))
+             (let ((mf (assoc-ref inputs "texlive-metafont")))
                ;; Tell mf where to find mf.base
                (setenv "MFBASES" (string-append mf "/share/texmf-dist/web2c"))
                ;; Tell mf where to look for source files
@@ -5023,7 +5282,7 @@ Adobe's basic set.")
                #t))))))
     (native-inputs
      `(("texlive-bin" ,texlive-bin)
-       ("texlive-metafont-base" ,texlive-metafont-base)
+       ("texlive-metafont" ,texlive-metafont)
        ("texlive-cm" ,texlive-cm)))
     (home-page "https://www.ctan.org/pkg/rsfs")
     (synopsis "Ralph Smith's Formal Script font")
@@ -5245,38 +5504,48 @@ package supports pdfTeX (pdfLaTeX) and VTeX.  With VTeX it is even possible to
 use this package to insert PostScript files, in addition to PDF files.")
     (license license:lppl1.3+)))
 
-(define-public texlive-fonts-stmaryrd
-  (package
-    (name "texlive-fonts-stmaryrd")
-    (version (number->string %texlive-revision))
-    (source (origin
-              (method svn-fetch)
-              (uri (texlive-ref "fonts" "stmaryrd"))
-              (file-name (string-append name "-" version "-checkout"))
-              (sha256
-               (base32
-                "08pn4ca3vl6qm9l3wm5h5iyjsrg411kkm1yana329xwg2j14s9n6"))))
-    (build-system texlive-build-system)
-    (arguments
-     '(#:tex-directory "latex/stmaryrd"
-       #:phases
-       (modify-phases %standard-phases
-         (add-after 'configure 'patch-ins
-           (lambda _
-             (substitute* "stmaryrd.ins"
-               (("^%% LaTeX2e.*") "\\input docstrip\n")
-               (("fontdef\\}\\}" line)
-                (string-append line "\n\\endbatchfile")))
-             #t)))))
-    (home-page "https://www.ctan.org/pkg/stmaryrd")
-    (synopsis "St Mary Road symbols for theoretical computer science")
-    (description
-     "The fonts were originally distributed as Metafont sources only, but
+(define-public texlive-stmaryrd
+  (let ((template (simple-texlive-package
+                   "texlive-stmaryrd"
+                   (list "/fonts/afm/public/stmaryrd/"
+                         "/fonts/map/dvips/stmaryrd/"
+                         "/fonts/source/public/stmaryrd/"
+                         "/fonts/tfm/public/stmaryrd/"
+                         "/fonts/type1/public/stmaryrd/"
+                         "/source/fonts/stmaryrd/"
+                         "/doc/fonts/stmaryrd/")
+                   (base32
+                    "0yn0yl6x1z9ab5gb56lhvkqabd2agz3ggxifwxkiysrj5780j29z"))))
+    (package
+      (inherit template)
+      (arguments (substitute-keyword-arguments (package-arguments template)
+                   ((#:tex-directory _ #t)
+                    "latex/stmaryrd")
+                   ((#:phases phases)
+                    `(modify-phases ,phases
+                       (add-after 'unpack 'chdir
+                         (lambda _
+                           (chdir "source/fonts/stmaryrd")
+                           #t))
+                       (add-after 'chdir 'patch-ins
+                         (lambda _
+                           (substitute* "stmaryrd.ins"
+                             (("^%% LaTeX2e.*") "\\input docstrip\n")
+                             (("fontdef\\}\\}" line)
+                              (string-append line "\n\\endbatchfile")))
+                           #t))))))
+      (home-page "https://www.ctan.org/pkg/stmaryrd")
+      (synopsis "St Mary Road symbols for theoretical computer science")
+      (description
+       "The fonts were originally distributed as Metafont sources only, but
 Adobe Type 1 versions are also now available.  Macro support is provided for
 use under LaTeX; the package supports the @code{only} option (provided by the
 @code{somedefs} package) to restrict what is loaded, for those who don't need
 the whole font.")
-    (license license:lppl)))
+      (license license:lppl))))
+
+(define-public texlive-fonts-stmaryrd
+  (deprecated-package "texlive-fonts-stmaryrd" texlive-stmaryrd))
 
 (define-public texlive-latex-subfigure
   (package
@@ -5496,6 +5765,90 @@ Simple Young tableaux.
 @end table")
     (license license:gpl2)))                    ;per the 00readme_txt file.
 
+(define-public texlive-jadetex
+  (let ((template (simple-texlive-package
+                   "texlive-jadetex"
+                   (list "/doc/man/man1/jadetex.1"
+                         "/doc/man/man1/jadetex.man1.pdf"
+                         "/doc/man/man1/pdfjadetex.1"
+                         "/doc/man/man1/pdfjadetex.man1.pdf"
+                         "/source/jadetex/base/"
+                         ;; The following files are not generated from
+                         ;; sources.
+                         "/tex/jadetex/base/jadetex.ini"
+                         "/tex/jadetex/base/pdfjadetex.ini"
+                         "/tex/jadetex/base/uentities.sty")
+                   (base32
+                    "03chyc3vjqgxcj985gy4k0bd0lf1n4a6sgbhc7k84jparjk3hx4i"))))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:tex-directory _ #t)
+          "jadetex/base")
+         ((#:phases phases)
+          `(modify-phases ,phases
+             (add-after 'unpack 'unify-source-directory
+               (lambda _
+                 (chdir "source/jadetex/base")
+                 (for-each (lambda (f)
+                             (copy-file f (basename f)))
+                           (find-files "../../../tex/jadetex/base"))
+                 #t))
+             (add-after 'build 'generate-formats
+               (lambda* (#:key inputs #:allow-other-keys)
+                 (mkdir "web2c")
+                 (for-each (lambda (f)
+                             (symlink f (basename f)))
+                           (find-files "build"))
+                 (invoke "fmtutil-sys" "--byfmt" "jadetex"
+                         "--fmtdir=web2c")
+                 (invoke "fmtutil-sys" "--byfmt" "pdfjadetex"
+                         "--fmtdir=web2c")))
+             (add-after 'install 'install-formats-and-wrappers
+               (lambda* (#:key inputs outputs #:allow-other-keys)
+                 (let* ((out (assoc-ref outputs "out"))
+                        (texlive-bin (assoc-ref inputs "texlive-bin"))
+                        (pdftex (string-append texlive-bin "/bin/pdftex"))
+                        (web2c (string-append out "/share/texmf-dist/web2c")))
+                   (mkdir-p web2c)
+                   (copy-recursively "web2c" web2c)
+                   ;; Create convenience command wrappers.
+                   (mkdir-p (string-append out "/bin"))
+                   (symlink pdftex (string-append out "/bin/jadetex"))
+                   (symlink pdftex (string-append out "/bin/pdfjadetex"))
+                   #t)))))))
+      (propagated-inputs
+       ;; Propagate the texlive-updmap.cfg input used by xmltex, which provides the
+       ;; required fonts for its use.
+       `(("texlive-xmltex" ,texlive-xmltex)
+         ("texlive-kpathsea" ,texlive-kpathsea))) ;for fmtutil.cnf template
+      (native-inputs
+       `(("texlive-cm" ,texlive-cm)     ;for cmex10 and others
+         ("texlive-fonts-latex" ,texlive-fonts-latex) ;for lasy6
+         ;; The t1cmr.fd file of texlive-latex-base refers to the ecrm font,
+         ;; provided by the jknappen package collection.
+         ("texlive-jknappen" ,texlive-jknappen)
+         ("texlive-generic-ulem" ,texlive-generic-ulem)
+         ("texlive-hyperref" ,texlive-hyperref)
+         ("texlive-latex-colortbl" ,texlive-latex-colortbl)
+         ("texlive-latex-fancyhdr" ,texlive-latex-fancyhdr)
+         ("texlive-latex-graphics" ,texlive-latex-graphics) ;for color.sty
+         ("texlive-latex-tools" ,texlive-latex-tools)       ;for array.sty
+         ("texlive-marvosym" ,texlive-marvosym)
+         ("texlive-tex-ini-files" ,texlive-tex-ini-files))) ;for pdftexconfig
+      (home-page "https://www.ctan.org/pkg/jadetex/")
+      (synopsis "TeX macros to produce TeX output using OpenJade")
+      (description "JadeTeX is a companion package to the OpenJade DSSSL
+processor.  OpenJade applies a DSSSL stylesheet to an SGML or XML document.
+The output of this process can be in a number of forms, including a set of
+high level LaTeX macros.  It is the task of the JadeTeX package to transform
+these macros into DVI/PostScript (using the @command{jadetex} command) or
+Portable Document Format (PDF) form (using the @command{pdfjadetex}
+command).")
+      ;; The license text is found at the header of the jadetex.dtx file.
+      (license license:expat))))
+
 (define-public texlive-libertine
   (package
     (inherit (simple-texlive-package
@@ -5620,23 +5973,32 @@ now contains a package @code{fix-cm},f which performs the task of
 @code{ec} fonts.")
     (license license:lppl)))
 
-(define-public texlive-latex-lh
-  (package
-    (name "texlive-latex-lh")
-    (version (number->string %texlive-revision))
-    (source (origin
-              (method svn-fetch)
-              (uri (texlive-ref "latex" "lh"))
-              (file-name (string-append name "-" version "-checkout"))
-              (sha256
-               (base32
-                "00gdiwh3sfhh1iimjhpja7lm7k4vzqzql2irgwnpz94qvh25zwi5"))))
-    (build-system texlive-build-system)
-    (arguments '(#:tex-directory "latex/lh"))
-    (home-page "https://www.ctan.org/pkg/lh")
-    (synopsis "Cyrillic fonts that support LaTeX standard encodings")
-    (description
-     "The LH fonts address the problem of the wide variety of alphabets that
+(define-public texlive-lh
+  (let ((template (simple-texlive-package
+                   "texlive-lh"
+                   (list "/doc/fonts/lh/"
+                         "/source/fonts/lh/"
+                         "/source/latex/lh/"
+                         "/fonts/source/lh/"
+                         "/tex/plain/lh/")
+                   (base32
+                    "0vw75i52asi5sssp8k9r8dy4ihvqbvmbsl3dini3ls8cky15lz37"))))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:tex-directory _ #t)
+          "latex/lh")
+         ((#:build-targets _ '())
+          ''("nfssfox.ins" "lcyfonts.ins" "ot2fonts.ins" "t2ccfonts.ins"))
+         ((#:phases phases)
+          `(modify-phases ,phases
+             (add-after 'unpack 'chdir
+               (lambda _ (chdir "source/latex/lh") #t))))))
+      (home-page "https://www.ctan.org/pkg/lh")
+      (synopsis "Cyrillic fonts that support LaTeX standard encodings")
+      (description
+       "The LH fonts address the problem of the wide variety of alphabets that
 are written with Cyrillic-style characters.  The fonts are the original basis
 of the set of T2* and X2 encodings that are now used when LaTeX users need to
 write in Cyrillic languages.  Macro support in standard LaTeX encodings is
@@ -5645,7 +6007,10 @@ offers support for other (more traditional) encodings.  The fonts, in the
 standard T2* and X2 encodings are available in Adobe Type 1 format, in the
 CM-Super family of fonts.  The package also offers its own LaTeX support for
 OT2 encoded fonts, CM bright shaped fonts and Concrete shaped fonts.")
-    (license license:lppl)))
+      (license license:lppl))))
+
+(define-public texlive-latex-lh
+  (deprecated-package "texlive-latex-lh" texlive-lh))
 
 (define-public texlive-marvosym
   (package
@@ -5779,9 +6144,9 @@ in the Metafont and Adobe Type 1 formats.  Support under LaTeX is provided by
 the @code{wasysym} package.")
     (license license:public-domain)))
 
-(define-public texlive-latex-wasysym
+(define-public texlive-wasysym
   (package
-    (name "texlive-latex-wasysym")
+    (name "texlive-wasysym")
     (version (number->string %texlive-revision))
     (source (origin
               (method svn-fetch)
@@ -5800,6 +6165,9 @@ male and female symbols and astronomical symbols, as well as the complete
 @code{lasy} font set and other odds and ends.  The @code{wasysym} package
 implements an easy to use interface for these symbols.")
     (license license:lppl)))
+
+(define-public texlive-latex-wasysym
+  (deprecated-package "texlive-latex-wasysym" texlive-wasysym))
 
 (define-public texlive-latex-wrapfig
   (package
@@ -5930,55 +6298,33 @@ requires the suffix package, which in turn requires that it runs under
 e-TeX.")
     (license license:lppl1.3+)))
 
-(define-public texlive-generic-pdftex
+(define-public texlive-pdftex
   (package
-    (name "texlive-generic-pdftex")
-    (version (number->string %texlive-revision))
-    (source (origin
-              (method svn-fetch)
-              (uri (svn-reference
-                    (url (string-append "svn://www.tug.org/texlive/tags/"
-                                        %texlive-tag "/Master/texmf-dist/"
-                                        "/tex/generic/pdftex"))
-                    (revision %texlive-revision)))
-              (file-name (string-append name "-" version "-checkout"))
-              (sha256
-               (base32
-                "0k68zmqzs4qvrqxdwsrawbjb14hxqjfamq649azvai0jjxdpkljd"))))
-    (build-system trivial-build-system)
-    (arguments
-     `(#:modules ((guix build utils))
-       #:builder
-       (begin
-         (use-modules (guix build utils))
-         (let ((target (string-append (assoc-ref %outputs "out")
-                                      "/share/texmf-dist/tex/generic/pdftex"))
-               (target-map (string-append (assoc-ref %outputs "out")
-                                      "/share/texmf-dist/fonts/map/pdftex")))
-           (mkdir-p target)
-           (copy-recursively (assoc-ref %build-inputs "source") target)
-           (mkdir-p target-map)
-           (copy-recursively (assoc-ref %build-inputs "pdftex-map") target-map)
-           #t))))
-    (native-inputs
-     `(("pdftex-map"
-        ,(origin
-           (method svn-fetch)
-           (uri (svn-reference
-                 (url (string-append "svn://www.tug.org/texlive/tags/"
-                                     %texlive-tag "/Master/texmf-dist/"
-                                     "/fonts/map/pdftex"))
-                 (revision %texlive-revision)))
-           (file-name (string-append name "-map-" version "-checkout"))
-           (sha256
-            (base32
-             "03rfif2631pgd8g1ar4xblcdh078kky7fvw3kfsj5a47rxxgicp2"))))))
+    (inherit (simple-texlive-package
+              "texlive-pdftex"
+              (list "/doc/pdftex/"
+                    "/doc/man/man1/pdfetex.1"
+                    "/doc/man/man1/pdftex.1"
+
+                    "/fonts/map/dvips/dummy-space/dummy-space.map"
+                    "/fonts/tfm/public/pdftex/dummy-space.tfm"
+                    "/fonts/type1/public/pdftex/dummy-space.pfb"
+                    "/scripts/simpdftex/simpdftex"
+
+                    "/tex/generic/config/pdftex-dvi.tex"
+                    "/tex/generic/pdftex/")
+              (base32
+               "0wsgbl0jrqc1qzgf23dla6b95lv2h8x6xvs5466d8jdrih6pwriq")
+              #:trivial? #t))
     (home-page "https://www.ctan.org/pkg/pdftex")
     (synopsis "TeX extension for direct creation of PDF")
     (description
      "This package provides an extension of TeX which can be configured to
 directly generate PDF documents instead of DVI.")
     (license license:gpl2+)))
+
+(define-public texlive-generic-pdftex
+  (deprecated-package "texlive-generic-pdftex" texlive-pdftex))
 
 (define texlive-texmf
   (package
@@ -5990,7 +6336,7 @@ directly generate PDF documents instead of DVI.")
     `(("texlive-bin" ,texlive-bin)
       ("lua" ,lua)
       ("perl" ,perl)
-      ("python" ,python-2) ; incompatible with Python 3 (print syntax)
+      ("python" ,python)
       ("ruby" ,ruby)
       ("tcsh" ,tcsh)))
    (arguments
@@ -6063,7 +6409,7 @@ This package contains the complete tree of texmf-dist data.")
    (version "20190410")
    (source #f)
    (build-system trivial-build-system)
-   (inputs `(("bash" ,bash) ; for wrap-program
+   (inputs `(("bash" ,bash-minimal)     ;for wrap-program
              ("texlive-bin" ,texlive-bin)
              ("texlive-texmf" ,texlive-texmf)))
    (native-search-paths
@@ -6355,12 +6701,12 @@ develop documents with LaTeX, in a single application.")
              (delete-file "book.pdf")
              #t)))))
     (native-inputs
-     `(("texlive" ,(texlive-union (list texlive-amsfonts
+     `(("texlive" ,(texlive-updmap.cfg (list texlive-amsfonts
                                         texlive-fonts-adobe-palatino
                                         texlive-fonts-adobe-zapfding
-                                        texlive-fonts-knuth-lib
+                                        texlive-knuth-lib
                                         texlive-fonts-mflogo-font
-                                        texlive-generic-pdftex)))
+                                        texlive-pdftex)))
        ("automake" ,automake)))
     (home-page "https://www.gnu.org/software/teximpatient/")
     (synopsis "Book on TeX, plain TeX and Eplain")
@@ -6372,7 +6718,7 @@ and Karl Berry.")
 (define-public lyx
   (package
     (name "lyx")
-    (version "2.3.5.1")
+    (version "2.3.6.1")
     (source (origin
               (method url-fetch)
               (uri (string-append "https://ftp.lyx.org/pub/lyx/stable/"
@@ -6380,7 +6726,7 @@ and Karl Berry.")
                                   "lyx-" version ".tar.xz"))
               (sha256
                (base32
-                "0mv32s26igm0pd8vs7d2mk1240dpr83y0a2wyh3xz6b67ph0w157"))
+                "0y7sx804ral14py5jwmb3icvyd6rsw806dfclw0qx28r6iix5gn6"))
               (modules '((guix build utils)))
               (snippet
                '(begin
@@ -6425,7 +6771,7 @@ and Karl Berry.")
        ("qtsvg" ,qtsvg)
        ("zlib" ,zlib)))
     (propagated-inputs
-     `(("texlive" ,(texlive-union (list texlive-fonts-ec)))))
+     `(("texlive" ,(texlive-updmap.cfg (list texlive-fonts-ec)))))
     (native-inputs
      `(("python" ,python)
        ("pkg-config" ,pkg-config)))
@@ -7078,6 +7424,52 @@ supports advanced interactive documents.  See the ConTeXt garden for a wealth
 of support information.")
     (license license:gpl2+)))
 
+(define-public texlive-context
+  (package
+    (inherit (simple-texlive-package
+              "texlive-context"
+              (list "/doc/context/"
+                    ;; XXX Omitting /doc/man/man1/*.pdf
+                    "/bibtex/bst/context/mkii/"
+                    "/context/data/"
+
+                    "/fonts/afm/hoekwater/context/contnav.afm"
+                    "/fonts/cid/fontforge/Adobe-CNS1-4.cidmap"
+                    "/fonts/cid/fontforge/Adobe-GB1-4.cidmap"
+                    "/fonts/cid/fontforge/Adobe-Identity-0.cidmap"
+                    "/fonts/cid/fontforge/Adobe-Japan1-5.cidmap"
+                    "/fonts/cid/fontforge/Adobe-Japan1-6.cidmap"
+                    "/fonts/cid/fontforge/Adobe-Japan2-0.cidmap"
+                    "/fonts/cid/fontforge/Adobe-Korea1-2.cidmap"
+                    "/fonts/enc/dvips/context/"
+                    "/fonts/map/dvips/context/"
+                    "/fonts/map/luatex/context/"
+                    "/fonts/map/pdftex/context/"
+                    "/fonts/misc/xetex/fontmapping/context/"
+                    "/fonts/tfm/hoekwater/context/contnav.tfm"
+                    "/fonts/type1/hoekwater/context/"
+
+                    "/metapost/context/"
+                    "/scripts/context/"
+                    "/tex/context/"
+
+                    "/tex/generic/context/luatex/"
+                    "/tex/generic/context/ppchtex/"
+                    "/tex/latex/context/")
+              (base32
+               "0cc8509hrc25ri4a8hshgasip5z4qlipx3nxdm97f1sr0l6ncxdr")
+              #:trivial? #t))
+    (home-page "https://www.ctan.org/pkg/context")
+    (synopsis "ConTeXt macro package")
+    (description "ConTeXt is a full featured, parameter driven macro package,
+which fully supports advanced interactive documents.  See the ConTeXt garden
+for a wealth of support information.")
+    ;; The GPL applies to all code; alternatively, the LaTeX license may be used.
+    ;; The CC-BY-SA license applies to all documentation.
+    (license (list license:lppl1.3c+
+                   license:gpl2+
+                   license:cc-by-sa4.0))))
+
 (define-public texlive-beamer
   (package
     (inherit (simple-texlive-package
@@ -7089,7 +7481,7 @@ of support information.")
               #:trivial? #t))
     (propagated-inputs
      `(("texlive-latex-hyperref" ,texlive-latex-hyperref)
-       ("texlive-latex-oberdiek" ,texlive-latex-oberdiek)
+       ("texlive-oberdiek" ,texlive-oberdiek)
        ("texlive-latex-etoolbox" ,texlive-latex-etoolbox)
        ("texlive-latex-pgf" ,texlive-latex-pgf)))
     (home-page "https://www.ctan.org/pkg/beamer")
@@ -7133,58 +7525,45 @@ the metadata is stored in an XML file, and this XML stream is then embedded in
 the file to which it applies.")
     (license license:gpl3+)))
 
-(define-public texlive-latex-pdfx
-  (package
-    (name "texlive-latex-pdfx")
-    (version (number->string %texlive-revision))
-    (source
-     (origin
-       (method svn-fetch)
-       (uri (texlive-ref "latex" "pdfx"))
-       (file-name (string-append name "-" version "-checkout"))
-       (sha256
-        (base32
-         "18294h0cr05fs424m3x6aq24z5hf5zmiflalkj4kvpmsyyqqsj74"))))
-    (build-system texlive-build-system)
-    (arguments
-     '(#:tex-directory "latex/pdfx"
-       #:phases
-       (modify-phases %standard-phases
-         (add-after 'unpack 'fix-encoding
-           (lambda _
-             (substitute* "pdfx.dtx"
-               (("    .+umaczy") "umaczy"))
-             #t))
-         (add-before 'install 'install-tex-files
-           (lambda* (#:key inputs outputs #:allow-other-keys)
-             (let ((target (string-append (assoc-ref outputs "out")
-                                          "/share/texmf-dist/tex/latex/pdfx")))
-               (mkdir-p target)
-               (copy-recursively (assoc-ref inputs "texlive-tex-pdfx") target)
-               ;; Install the generated version in the "install" phase.
-               (delete-file (string-append target "/pdfx.sty"))
-               #t))))))
-    (propagated-inputs
-     `(("texlive-generic-pdftex" ,texlive-generic-pdftex)))
-    (native-inputs
-     `(("texlive-tex-pdfx"
-        ,(origin
-           (method svn-fetch)
-           (uri (svn-reference
-                 (url (string-append "svn://www.tug.org/texlive/tags/"
-                                     %texlive-tag "/Master/texmf-dist/"
-                                     "/tex/latex/pdfx"))
-                 (revision %texlive-revision)))
-           (file-name (string-append "texlive-tex-latex-pdfx-" version "-checkout"))
-           (sha256
-            (base32
-             "171ffvpkj2fab4ljcxv3l6l5c8ga8zavdhmhfq07id8zyyr619ip"))))))
-    (home-page "https://www.ctan.org/pkg/pdfx")
-    (synopsis "PDF/X and PDF/A support for pdfTeX, LuaTeX and XeTeX")
-    (description
-     "This package helps LaTeX users to create PDF/X, PDF/A and other
+(define-public texlive-pdfx
+  (let ((template (simple-texlive-package
+                   "texlive-pdfx"
+                   (list "/doc/latex/pdfx/"
+                         "/source/latex/pdfx/"
+                         "/tex/latex/pdfx/")
+                   (base32
+                    "1z4j4d92k2fjmf8jfap4zn7ij97d9rz2jcs9aslcac07ag4x5bdp"))))
+    (package
+      (inherit template)
+      (arguments
+       (substitute-keyword-arguments (package-arguments template)
+         ((#:tex-directory _ #t)
+          "latex/pdfx")
+         ((#:phases phases)
+          `(modify-phases ,phases
+             (add-after 'unpack 'delete-generated-file
+               (lambda _
+                 ;; Generate this file from sources
+                 (delete-file "tex/latex/pdfx/pdfx.sty")
+                 #t))
+             (add-after 'delete-generated-file 'chdir
+               (lambda _ (chdir "source/latex/pdfx") #t))
+             (add-after 'chdir 'fix-encoding
+               (lambda _
+                 (substitute* "pdfx.dtx"
+                   (("    .+umaczy") "umaczy"))
+                 #t))))))
+      (propagated-inputs
+       `(("texlive-pdftex" ,texlive-pdftex)))
+      (home-page "https://www.ctan.org/pkg/pdfx")
+      (synopsis "PDF/X and PDF/A support for pdfTeX, LuaTeX and XeTeX")
+      (description
+       "This package helps LaTeX users to create PDF/X, PDF/A and other
 standards-compliant PDF documents with pdfTeX, LuaTeX and XeTeX.")
-    (license license:lppl1.2+)))
+      (license license:lppl1.2+))))
+
+(define-public texlive-latex-pdfx
+  (deprecated-package "texlive-latex-pdfx" texlive-pdfx))
 
 (define-public texlive-ydoc
   (let ((template (simple-texlive-package

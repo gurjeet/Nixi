@@ -245,7 +245,7 @@ the real span of the lattice.")
                 "14xs90wrw8mbdx08hxlbhiahp6kgjq6yh27zjw7fvhfjx5nr84f8"))))
     (build-system gnu-build-system)
     (native-inputs
-     `(("texlive" ,(texlive-union
+     `(("texlive" ,(texlive-updmap.cfg
                     (list texlive-amsfonts)))))
     (inputs `(("gmp" ,gmp)
               ("libx11" ,libx11)
@@ -717,6 +717,8 @@ binary.")
        ("ed" ,ed)
        ("flex" ,flex)
        ("texinfo" ,texinfo)))
+    (inputs
+     `(("readline" ,readline)))
     (arguments
      '(#:configure-flags
        (list "--with-readline")

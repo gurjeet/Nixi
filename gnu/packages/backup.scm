@@ -212,7 +212,7 @@ backups (called chunks) to allow easy burning to CD/DVD.")
 (define-public libarchive
   (package
     (name "libarchive")
-    (version "3.4.2")
+    (version "3.5.1")
     (source
      (origin
        (method url-fetch)
@@ -223,7 +223,7 @@ backups (called chunks) to allow easy burning to CD/DVD.")
                                  version ".tar.xz")))
        (sha256
         (base32
-         "18dd01ahs2hv74xm7axjc3yhq839p0x0s4vssvlmm8fknja09qfq"))))
+         "16r95rlmikll1k8vbhh06vq6x3srkc10hzxjjf3021mjs2ld65qf"))))
     (build-system gnu-build-system)
     (inputs
      `(("bzip2" ,bzip2)
@@ -784,8 +784,8 @@ NTFS volumes using @code{ntfs-3g}, preserving NTFS-specific attributes.")
                     (output-dir
                      (assoc-ref outputs "out"))
 
-                    ;; Just a default... not so useful on guixsd though
-                    ;; You probably want to a service with file(s) to point to.
+                    ;; Just a default... not so useful on Guix Systems though.
+                    ;; You probably want a service with file(s) to point to.
                     (confdir "/etc/dirvish")
 
                     (perl (string-append (assoc-ref %build-inputs "perl")

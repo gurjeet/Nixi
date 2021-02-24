@@ -35,7 +35,7 @@
 ;;; Copyright © 2020 Josh Marshall <joshua.r.marshall.1991@gmail.com>
 ;;; Copyright © 2020 Vinicius Monego <monego@posteo.net>
 ;;; Copyright © 2020 Tanguy Le Carrour <tanguy@bioneland.org>
-;;; Copyright © 2020 Maxim Cournoyer <maxim.cournoyer@gmail.com>
+;;; Copyright © 2020, 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -67,6 +67,7 @@
   #:use-module (gnu packages perl)
   #:use-module (gnu packages pkg-config)
   #:use-module (gnu packages python)
+  #:use-module (gnu packages python-check)
   #:use-module (gnu packages python-build)
   #:use-module (gnu packages python-web)
   #:use-module (gnu packages python-xyz)
@@ -931,69 +932,15 @@ standard library.")
 (define-public python-pytest
   (package
     (name "python-pytest")
-    (version "5.3.5")
+    (version "6.2.1")
     (source
      (origin
        (method url-fetch)
        (uri (pypi-uri "pytest" version))
        (sha256
         (base32
-         "139i9cjhrv5aici3skq8iihvfb3lq0d8xb5j7qycr2hlk8cfjpqd"))))
+         "01n3jny7m05r6g7gphbkj2xdms75ql93x69crd377hlvi6qikr36"))))
     (build-system python-build-system)
-    (arguments
-     `(#:phases
-       (modify-phases %standard-phases
-         (replace 'check
-           (lambda* (#:key (tests? #t) #:allow-other-keys)
-             (if tests?
-                 (invoke "pytest" "-vv" "-k"
-                         (string-append
-                          ;; These tests involve the /usr directory, and fails.
-                          "not test_remove_dir_prefix"
-                          " and not test_argcomplete"
-                          ;; This test tries to override PYTHONPATH, and
-                          ;; subsequently fails to locate the test libraries.
-                          " and not test_collection"))
-                 (format #t "test suite not run~%"))
-             #t)))))
-    (propagated-inputs
-     `(("python-atomicwrites" ,python-atomicwrites)
-       ("python-attrs" ,python-attrs-bootstrap)
-       ("python-more-itertools" ,python-more-itertools)
-       ("python-packaging" ,python-packaging-bootstrap)
-       ("python-pluggy" ,python-pluggy)
-       ("python-py" ,python-py)
-       ("python-six" ,python-six-bootstrap)
-       ("python-wcwidth" ,python-wcwidth)))
-    (native-inputs
-     `(;; Tests need the "regular" bash since 'bash-final' lacks `compgen`.
-       ("bash" ,bash)
-       ("python-hypothesis" ,python-hypothesis)
-       ("python-nose" ,python-nose)
-       ("python-mock" ,python-mock)
-       ("python-pytest" ,python-pytest-bootstrap)
-       ("python-setuptools-scm" ,python-setuptools-scm)
-       ("python-xmlschema" ,python-xmlschema)))
-    (home-page "https://docs.pytest.org/en/latest/")
-    (synopsis "Python testing library")
-    (description
-     "Pytest is a testing tool that provides auto-discovery of test modules
-and functions, detailed info on failing assert statements, modular fixtures,
-and many external plugins.")
-    (license license:expat)
-    (properties `((python2-variant . ,(delay python2-pytest))))))
-
-(define-public python-pytest-6
-  (package
-    (inherit (strip-python2-variant python-pytest))
-    (version "6.1.2")
-    (source
-     (origin
-       (method url-fetch)
-       (uri (pypi-uri "pytest" version))
-       (sha256
-        (base32
-         "0gl2sdm322vzmsh5k4f8kj9raiq2y7kdinnca4m45ifvii5fk9y0"))))
     (arguments
      `(#:phases
        (modify-phases %standard-phases
@@ -1009,18 +956,35 @@ and many external plugins.")
                           ;; fail.
                           " and not test_code_highlight"
                           " and not test_color_yes"))
-                 (format #t "test suite not run~%"))
-             #t)))))
+                 (format #t "test suite not run~%")))))))
     (propagated-inputs
-     (append (alist-delete "python-py"
-                           (package-propagated-inputs python-pytest))
-             `(("python-py" ,python-py-next))))
+     `(("python-attrs" ,python-attrs-bootstrap)
+       ("python-iniconfig" ,python-iniconfig)
+       ("python-more-itertools" ,python-more-itertools)
+       ("python-packaging" ,python-packaging-bootstrap)
+       ("python-pluggy" ,python-pluggy)
+       ("python-py" ,python-py)
+       ("python-six" ,python-six-bootstrap)
+       ("python-toml" ,python-toml)
+       ("python-wcwidth" ,python-wcwidth)))
     (native-inputs
-     (append (alist-delete "python-pytest"
-                           (package-native-inputs python-pytest))
-             `(("python-pytest" ,python-pytest-6-bootstrap)
-               ("python-toml" ,python-toml)
-               ("python-iniconfig" ,python-iniconfig))))))
+     `(;; Tests need the "regular" bash since 'bash-final' lacks `compgen`.
+       ("bash" ,bash)
+       ("python-hypothesis" ,python-hypothesis)
+       ("python-nose" ,python-nose)
+       ("python-mock" ,python-mock)
+       ("python-pytest" ,python-pytest-bootstrap)
+       ("python-setuptools-scm" ,python-setuptools-scm)
+       ("python-toml" ,python-toml)
+       ("python-xmlschema" ,python-xmlschema)))
+    (home-page "https://docs.pytest.org/en/latest/")
+    (synopsis "Python testing library")
+    (description
+     "Pytest is a testing tool that provides auto-discovery of test modules
+and functions, detailed info on failing assert statements, modular fixtures,
+and many external plugins.")
+    (license license:expat)
+    (properties `((python2-variant . ,(delay python2-pytest))))))
 
 ;; Pytest 4.x are the last versions that support Python 2.
 (define-public python2-pytest
@@ -1062,18 +1026,11 @@ and many external plugins.")
   (package
     (inherit (strip-python2-variant python-pytest))
     (name "python-pytest-bootstrap")
-    (native-inputs `(("python-setuptools-scm" ,python-setuptools-scm)))
+    (native-inputs `(("python-iniconfig" ,python-iniconfig)
+                     ("python-setuptools-scm" ,python-setuptools-scm)
+                     ("python-toml" ,python-toml)))
     (arguments `(#:tests? #f))
     (properties `((python2-variant . ,(delay python2-pytest-bootstrap))))))
-
-(define-public python-pytest-6-bootstrap
-  (package
-    (inherit (strip-python2-variant python-pytest-6))
-    (name "python-pytest-bootstrap")
-    (arguments `(#:tests? #f))
-    (native-inputs
-     `(("python-setuptools-scm" ,python-setuptools-scm)
-       ("python-toml" ,python-toml)))))
 
 (define-public python2-pytest-bootstrap
   (hidden-package
@@ -1266,20 +1223,25 @@ same arguments.")
            #t))))
     (build-system python-build-system)
     (arguments
-     '(#:tests? #f)) ;FIXME: Some tests are failing.
-       ;; #:phases
-       ;; (modify-phases %standard-phases
-       ;;   (delete 'check)
-       ;;   (add-after 'install 'check
-       ;;     (lambda* (#:key inputs outputs #:allow-other-keys)
-       ;;       (add-installed-pythonpath inputs outputs)
-       ;;       (zero? (system* "py.test" "-v")))))
+     '(#:tests? #f ; Lots of tests fail.
+       #:phases
+       (modify-phases %standard-phases
+         (add-after 'unpack 'patch-setup-py
+           (lambda _
+             ;; Relax pytest requirement.
+             (substitute* "setup.py"
+               (("pytest>=6\\.0\\.0") "pytest"))))
+         (replace 'check
+            (lambda* (#:key tests? #:allow-other-keys)
+              (when tests?
+                (invoke "py.test" "-v")))))))
     (native-inputs
      `(("python-setuptools-scm" ,python-setuptools-scm)))
     (propagated-inputs
      `(("python-execnet" ,python-execnet)
        ("python-pytest" ,python-pytest)
-       ("python-py" ,python-py)))
+       ("python-py" ,python-py)
+       ("python-pytest-forked" ,python-pytest-forked)))
     (home-page
      "https://github.com/pytest-dev/pytest-xdist")
     (synopsis
@@ -1329,19 +1291,18 @@ timeout has been exceeded.")
 (define-public python-pytest-forked
   (package
     (name "python-pytest-forked")
-    (version "1.1.3")
+    (version "1.3.0")
     (source
      (origin
        (method url-fetch)
        (uri (pypi-uri "pytest-forked" version))
        (sha256
         (base32
-         "000i4q7my2fq4l49n8idx2c812dql97qv6qpm2vhrrn9v6g6j18q"))))
+         "1jip9qh115zcg1rn7irqx5qycb9k248d5imy86f566md01zaraba"))))
     (build-system python-build-system)
-    (propagated-inputs
-     `(("python-pytest" ,python-pytest)))
     (native-inputs
-     `(("python-setuptools-scm" ,python-setuptools-scm)))
+     `(("python-pytest" ,python-pytest)
+       ("python-setuptools-scm" ,python-setuptools-scm)))
     (home-page
      "https://github.com/pytest-dev/pytest-forked")
     (synopsis
@@ -1560,7 +1521,12 @@ protocol.")))
                (base32
                 "1vxj29bzz3rd4pcy51d05wng9q9dh4jq6wx92yklsm7i6h1ddw7w"))))
     (build-system python-build-system)
-    (arguments `(#:tests? #f))
+    (arguments
+      `(#:tests? #f
+        #:phases
+         (modify-phases %standard-phases
+           ;; Package is not loadable on its own at this stage.
+           (delete 'sanity-check))))
     (propagated-inputs
      `(("python-pbr-minimal" ,python-pbr-minimal)
        ("python-six" ,python-six)))
@@ -1929,13 +1895,13 @@ instantly.")
 (define-public python-hypothesis
   (package
     (name "python-hypothesis")
-    (version "5.4.1")
+    (version "6.0.2")
     (source (origin
               (method url-fetch)
               (uri (pypi-uri "hypothesis" version))
               (sha256
                (base32
-                "0zn09bn6hadk4vxl6jy8bkjr5fz8mrhin3z46w7pq5qgbaycr89p"))))
+                "0wj7ip779naf2n076nylf2gi0sjz68z1ir9d9r2rgs7br18naqdf"))))
     (build-system python-build-system)
     (arguments
      ;; XXX: Tests are not distributed with the PyPI archive.
@@ -1951,18 +1917,6 @@ seamlessly into your existing Python unit testing work flow.")
     (home-page "https://github.com/HypothesisWorks/hypothesis-python")
     (license license:mpl2.0)
     (properties `((python2-variant . ,(delay python2-hypothesis))))))
-
-(define-public python-hypothesis-5.23
-  (package
-    (inherit python-hypothesis)
-    (version "5.23.0")
-    (source (origin
-              (method url-fetch)
-              (uri (pypi-uri "hypothesis" version))
-              (sha256
-               (base32
-                "0sy1v6nyxg4rjcf3rlr8nalb7wqd9nccpb2lzkchbj5an13ysf1h"))))
-    (home-page "https://github.com/HypothesisWorks/hypothesis")))
 
 ;; This is the last version of Hypothesis that supports Python 2.
 (define-public python2-hypothesis
@@ -1983,19 +1937,19 @@ seamlessly into your existing Python unit testing work flow.")
 (define-public python-hypothesmith
   (package
     (name "python-hypothesmith")
-    (version "0.1.2")
+    (version "0.1.8")
     (source
      (origin
        (method url-fetch)
        (uri (pypi-uri "hypothesmith" version))
        (sha256
         (base32
-         "09331sspknv459xcyn1k0lx5flqlc6gmnwp9370pfvg4kg1zmss6"))))
+         "02j101m5grjrbvrgjap17jsxd1hgawkylmyswcn33vf42mxh9zzr"))))
     (build-system python-build-system)
     (propagated-inputs
-     `(("python-hypothesis" ,python-hypothesis-5.23)
+     `(("python-hypothesis" ,python-hypothesis)
        ("python-lark-parser" ,python-lark-parser)
-       ("python-libcst" ,python-libcst)))
+       ("python-libcst" ,python-libcst-minimal)))
     (home-page "https://github.com/Zac-HD/hypothesmith")
     (synopsis "Strategies for generating Python programs")
     (description
@@ -2045,7 +1999,18 @@ failures.")
                 "06032agzhw1i9d9qlhfblnl3dw5hcyxhagn7b120zhrszbjzfbh3"))))
     (build-system python-build-system)
     (arguments
-     `(#:tests? #f)) ; Fails with recent pytest and pep8. See upstream issues #8 and #12.
+     `(#:tests? #f ; Fails with recent pytest and pep8. See upstream issues #8 and #12.
+       #:phases
+       (modify-phases %standard-phases
+         (add-after 'unpack 'fix-dependencies
+           (lambda _
+             (substitute* "setup.py"
+               (("'pytest-cache', ") ""))))  ; Included in recent pytest
+         (replace 'check
+            (lambda* (#:key tests? inputs outputs #:allow-other-keys)
+              (when tests?
+                (add-installed-pythonpath inputs outputs)
+                (invoke "pytest" "-v")))))))
     (native-inputs
      `(("python-pytest" ,python-pytest)))
     (propagated-inputs
@@ -2128,7 +2093,7 @@ statements in the module it tests.")
 (define-public python-pylint
   (package
     (name "python-pylint")
-    (version "2.5.3")
+    (version "2.6.0")
     (source
      (origin
        (method git-fetch)
@@ -2137,13 +2102,26 @@ statements in the module it tests.")
              (commit (string-append "pylint-" version))))
        (file-name (git-file-name name version))
        (sha256
-        (base32 "04cgbh2z1mygar63plzziyz34yg6bdr4i0g63jp256fgnqwb1bi3"))))
+        (base32 "0ws3dz3wm49brnhhfm7v75zq202pwlwfbi3njdd69aqxq912x15z"))))
     (build-system python-build-system)
-    ;; FIXME: Tests are failing since version 2.4.3, see:
-    ;; https://github.com/PyCQA/pylint/issues/3198.
-    (arguments '(#:tests? #f))
+    (arguments
+     `(#:tests? #t
+       #:phases
+       (modify-phases %standard-phases
+         (replace 'check
+           (lambda* (#:key tests? #:allow-other-keys)
+             (when tests?
+               ;; The following failing tests are skipped (see:
+               ;; https://github.com/PyCQA/pylint/issues/4068).
+               (invoke "pytest" "-k"
+                       (string-append
+                        "not unused_typing_imports "
+                        "and not star_needs_assignment_target_py35 "
+                        "and not regression_property_no_member_2641 "
+                        "and not missing_kwoa_py3"))))))))
     (native-inputs
      `(("python-pytest" ,python-pytest)
+       ("python-pytest-benchmark" ,python-pytest-benchmark)
        ("python-pytest-runner" ,python-pytest-runner)
        ("python-tox" ,python-tox)))
     (propagated-inputs
@@ -2339,20 +2317,10 @@ backported from Python 2.7 for Python 2.4+.")
        ("python-pyhamcrest" ,python-pyhamcrest)
        ("python-pytest" ,python-pytest)))
     (propagated-inputs
-     `(("python-importlib-metadata" ,python-importlib-metadata)
-       ("python-six" ,python-six)
-       ("python-parse" ,python-parse)
+     `(("python-parse" ,python-parse)
        ("python-parse-type" ,python-parse-type)))
     (arguments
-     '(#:test-target "behave_test"
-       #:phases
-       (modify-phases %standard-phases
-         (add-before 'check 'fix-library-loading
-           (lambda _
-             ;; Otherwise, tests fail with no module named 'path'
-             (setenv "PYTHONPATH" (string-append (getenv "PYTHONPATH") ":"
-                                                 (getcwd) "/tasks/_vendor"))
-             #t)))))
+     '(#:test-target "behave_test"))
     (home-page "https://github.com/behave/behave")
     (synopsis "Python behavior-driven development")
     (description
@@ -2591,48 +2559,35 @@ retried.")
   (package-with-python2 python-flaky))
 
 (define-public python-pyhamcrest
-  ;; The latest release was in 2016 and its test suite does not work with recent
-  ;; versions of Pytest.  Just take the master branch for now, which seems stable.
-  (let ((commit "25fdc5f00bdf3084335353bc9247253098ec4cf2")
-        (revision "0"))
-    (package
-      (name "python-pyhamcrest")
-      (version (git-version "1.9.0" revision commit))
-      (source (origin
-                ;; Tests not distributed from pypi release.
-                (method git-fetch)
-                (uri (git-reference
-                      (url "https://github.com/hamcrest/PyHamcrest")
-                      (commit commit)))
-                (file-name (git-file-name name version))
-                (sha256
-                 (base32
-                  "1miqmhhi68vaix8sqc1lvpvbm27bacffxh5anm5cbfsvk7g9n6f3"))))
-      (native-inputs                    ;all native inputs are for tests
-       `(("python-pytest-cov" ,python-pytest-cov)
-         ("python-mock" ,python-mock)
-         ("python-pytest" ,python-pytest)
-         ("python-hypothesis" ,python-hypothesis)))
-      (propagated-inputs
-       `(("python-six" ,python-six)))
-      (build-system python-build-system)
-      (arguments
-       `(#:phases (modify-phases %standard-phases
-                    (replace 'check
-                      (lambda _
-                        (setenv "PYTHONPATH"
-                                (string-append "build/lib:"
-                                               (getenv "PYTHONPATH")))
-                        (invoke "pytest" "-vv"))))))
-      (home-page "http://hamcrest.org/")
-      (synopsis "Hamcrest matchers for Python")
-      (description
-       "PyHamcrest is a framework for writing matcher objects,
- allowing you to declaratively define \"match\" rules.")
-      (license license:bsd-3))))
-
-(define-public python2-pyhamcrest
-  (package-with-python2 python-pyhamcrest))
+  (package
+    (name "python-pyhamcrest")
+    (version "2.0.2")
+    (source (origin
+              ;; Tests not distributed from pypi release.
+              (method git-fetch)
+              (uri (git-reference
+                    (url "https://github.com/hamcrest/PyHamcrest")
+                    (commit (string-append "V" version))))
+              (file-name (git-file-name name version))
+              (sha256
+               (base32
+                "05kdzlhs2kvj82pfca13qszszcj6dyrk4b9pbr46x06sq2s4qyls"))))
+    (native-inputs                      ;all native inputs are for tests
+     `(("python-pytest-cov" ,python-pytest-cov)
+       ("python-mock" ,python-mock)
+       ("python-pytest" ,python-pytest)
+       ("python-hypothesis" ,python-hypothesis)))
+    (build-system python-build-system)
+    (arguments
+     `(#:phases (modify-phases %standard-phases
+                  (replace 'check
+                    (lambda _
+                      (invoke "pytest" "-vv"))))))
+    (home-page "http://hamcrest.org/")
+    (synopsis "Hamcrest matchers for Python")
+    (description "PyHamcrest is a framework for writing matcher objects,
+allowing you to declaratively define \"match\" rules.")
+    (license license:bsd-3)))
 
 (define-public unittest-cpp
   (package
@@ -2802,13 +2757,21 @@ grew out of the @dfn{Vc} project.")
     (arguments
      `(#:phases
        (modify-phases %standard-phases
+         (add-after 'unpack 'patch-testsuite
+           (lambda _
+             ;; Time difference is larger than expected.
+             (substitute* "pyfakefs/tests/fake_filesystem_unittest_test.py"
+               (("(\\s+)def test_copy_real_file" all indent)
+                (string-append
+                  indent
+                  "@unittest.skip('disabled by guix')\n"
+                  all)))))
          ;; The default test suite does not run these extra tests.
          (add-after 'check 'check-pytest-plugin
            (lambda _
              (invoke
               "python" "-m" "pytest"
-              "pyfakefs/pytest_tests/pytest_plugin_test.py")
-             #t)))))
+              "pyfakefs/pytest_tests/pytest_plugin_test.py"))))))
     (native-inputs
      `(("python-pytest" ,python-pytest)))
     (build-system python-build-system)

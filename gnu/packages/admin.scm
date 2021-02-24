@@ -1,5 +1,5 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2013 Cyril Roelandt <tipecaml@gmail.com>
 ;;; Copyright © 2014, 2015, 2016, 2018, 2019, 2020 Mark H Weaver <mhw@netris.org>
 ;;; Copyright © 2014, 2015, 2016, 2017, 2018, 2020 Eric Bavier <bavier@posteo.net>
@@ -35,6 +35,7 @@
 ;;; Copyright © 2020 Michael Rohleder <mike@rohleder.de>
 ;;; Copyright © 2020 Vincent Legoll <vincent.legoll@gmail.com>
 ;;; Copyright © 2020 Morgan Smith <Morgan.J.Smith@outlook.com>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -544,7 +545,8 @@ or via the @code{facter} Ruby library.")
      `(("ncurses" ,ncurses)))
     (native-inputs
      `(("autoconf" ,autoconf)
-       ("automake" ,automake)))
+       ("automake" ,automake)
+       ("python" ,python-minimal-wrapper)))     ; for scripts/MakeHeader.py
     (home-page "https://htop.dev")
     (synopsis "Interactive process viewer")
     (description
@@ -612,15 +614,14 @@ re-executing them as necessary.")
 (define-public inetutils
   (package
     (name "inetutils")
-    (version "1.9.4")
+    (version "2.0")
     (source (origin
              (method url-fetch)
              (uri (string-append "mirror://gnu/inetutils/inetutils-"
                                  version ".tar.gz"))
-             (patches (search-patches "inetutils-hurd.patch"))
              (sha256
               (base32
-               "05n65k4ixl85dc6rxc51b1b732gnmm8xnqi424dy9f1nz7ppb3xy"))))
+               "0j1nb69bhg29cm4xkqqjh2ln1zqcj2lnpm92v638lpwrs11dypxl"))))
     (build-system gnu-build-system)
     (arguments
      `(#:configure-flags '("--localstatedir=/var"
@@ -641,10 +642,17 @@ re-executing them as necessary.")
                                    "--disable-uucpd"
                                    "--disable-whois")
                                  '()))
+       ;; Make sure that canonical "coreutils" package is not referred.
+       #:make-flags
+       (list (string-append "CPPFLAGS=-DPATHDEF_CP=\\\""
+                            (assoc-ref %build-inputs "coreutils*")
+                            "/bin/cp\\\""))
        ;; On some systems, 'libls.sh' may fail with an error such as:
        ;; "Failed to tell switch -a apart from -A".
        #:parallel-tests? #f))
-    (inputs `(("ncurses" ,ncurses)
+    (inputs `(("coreutils*" ,coreutils)
+              ("shadow" ,shadow)    ;for login (used in telnetd and rlogind)
+              ("ncurses" ,ncurses)
               ("readline" ,readline)))        ;for 'ftp'
     (native-inputs (if (member (%current-system)
                                (package-supported-systems net-tools))
@@ -676,7 +684,10 @@ hostname.")
      `(;; Assume System V `setpgrp (void)', which is the default on GNU
        ;; variants (`AC_FUNC_SETPGRP' is not cross-compilation capable.)
        #:configure-flags
-       '("--with-libpam" "ac_cv_func_setpgrp_void=yes")
+       '(,@(if (hurd-target?)
+             '()
+             '("--with-libpam"))
+          "ac_cv_func_setpgrp_void=yes")
 
        #:phases
        (modify-phases %standard-phases
@@ -701,7 +712,10 @@ hostname.")
                (for-each delete-file (find-files man "^groups\\."))
                #t))))))
 
-    (inputs `(("linux-pam" ,linux-pam)))
+    (inputs
+     `(,@(if (hurd-target?)
+           '()
+           `(("linux-pam" ,linux-pam)))))
     (home-page "https://github.com/shadow-maint/shadow")
     (synopsis "Authentication-related tools such as passwd, su, and login")
     (description
@@ -1490,13 +1504,12 @@ system administrator.")
        ;; the chroot's /etc/passwd doesn't have it.  Turn off the tests.
        #:tests? #f))
     (native-inputs
-     ;; XXX TODO: Remove on next rebuild cycle.
-     (if (hurd-target?)
-         '()
-         `(("groff" ,groff))))
+     `(("groff" ,groff)))
     (inputs
      `(("coreutils" ,coreutils)
-       ("linux-pam" ,linux-pam)
+       ,@(if (hurd-target?)
+           '()
+           `(("linux-pam" ,linux-pam)))
        ("zlib" ,zlib)))
     (home-page "https://www.sudo.ws/")
     (synopsis "Run commands as root")
@@ -1958,7 +1971,7 @@ system is under heavy load.")
 (define-public detox
   (package
     (name "detox")
-    (version "1.3.0")
+    (version "1.3.3")
     (source (origin
               (method git-fetch)
               (uri (git-reference
@@ -1967,7 +1980,7 @@ system is under heavy load.")
               (file-name (git-file-name name version))
               (sha256
                (base32
-                "1dd608c7g65s5lj02cddvani3q9kzirddgkjqa22ap9d4f8b9xgr"))))
+                "13mhs62m7bpff45liy65pajq5jg3i12jj90vwdkra94z9mlr2rlz"))))
     (build-system gnu-build-system)
     (native-inputs
      `(("autoconf" ,autoconf)
@@ -2688,7 +2701,7 @@ done with the @code{auditctl} utility.")
                  "install-nping")
                (make ndiff "install-ndiff")
                (wrap-program (string-append ndiff "/bin/ndiff")
-                 `("PYTHONPATH" prefix
+                 `("GUIX_PYTHONPATH" prefix
                    (,(python-path ndiff)))))
              #t))
          ;; These are the tests that do not require network access.
@@ -2743,7 +2756,7 @@ results (ndiff), and a packet generation and response analysis tool (nping).")
            (lambda* (#:key outputs #:allow-other-keys)
              (let ((out (assoc-ref outputs "out")))
                (wrap-program (string-append out "/bin/dstat")
-                 `("PYTHONPATH" ":" prefix (,(getenv "PYTHONPATH"))))
+                 `("GUIX_PYTHONPATH" ":" prefix (,(getenv "GUIX_PYTHONPATH"))))
                #t))))))
     (inputs
      `(("python" ,python-wrapper)
@@ -2810,13 +2823,13 @@ a new command using the matched rule, and runs it.")
 (define-public di
   (package
     (name "di")
-    (version "4.48")
+    (version "4.48.0.1")
     (source
      (origin
        (method url-fetch)
        (uri (string-append "https://gentoo.com/di/di-" version ".tar.gz"))
        (sha256
-        (base32 "0crvvfsxh8ryc0j19a2x52i9zacvggm8zi6j3kzygkcwnpz4km8r"))))
+        (base32 "0rxli3bcm6vlcfx2jminviv8aawwczrpp9kja5zniawy6528al30"))))
     (build-system gnu-build-system)
     (arguments
      `(#:tests? #f                      ; obscure test failures
@@ -3432,7 +3445,7 @@ make it a perfect utility on modern distros.")
 (define-public thermald
   (package
     (name "thermald")
-    (version "2.4.1")
+    (version "2.4.2")
     (source
      (origin
       (method git-fetch)
@@ -3441,7 +3454,7 @@ make it a perfect utility on modern distros.")
              (commit (string-append "v" version))))
       (file-name (git-file-name name version))
       (sha256
-       (base32 "0rlac7v1b59m7gh767hkd8a0r4p001nd24786fnmryygbxynd2s6"))))
+       (base32 "0nzjfiis4d3ml765s65bywk5dhx5x2fb3hpiixpxzzrs50ajwasj"))))
     (build-system gnu-build-system)
     (arguments
      `(#:configure-flags
@@ -3827,8 +3840,7 @@ support forum.  It runs with the @code{/exec} command in most IRC clients.")
        (modify-phases %standard-phases
          (add-before 'build 'setenv-PATH
            (lambda _
-             (setenv "PYTHONPATH" (string-append "lib:" (getenv "PYTHONPATH")))
-             #t)))))
+             (setenv "PYTHONPATH" "lib"))))))
     (propagated-inputs
      `(("python-pygobject" ,python-pygobject)
        ("python-pyudev" ,python-pyudev)))

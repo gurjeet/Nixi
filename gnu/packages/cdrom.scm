@@ -156,6 +156,10 @@ extraction from CDs.")
 libcdio.")
     (license gpl3+)))
 
+;; Xorriso is used by Guix for creating ISO images. If you change this package,
+;; please make sure the Guix functionality still works by running some related
+;; system tests.
+;; For example, try running `make check-system TESTS=iso-image-installer`.
 (define-public xorriso
   (package
     (name "xorriso")
@@ -1039,7 +1043,7 @@ drive and disc (including CD-ROMs and DVD-ROMs).")
              (let ((prog (string-append (assoc-ref outputs "out")
                                         "/bin/cdemu")))
                (wrap-program prog
-                 `("PYTHONPATH" = (,(getenv "PYTHONPATH"))))
+                 `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH"))))
                #t))))))
     (home-page "https://cdemu.sourceforge.io/")
     (synopsis "Command-line client for controlling cdemu-daemon")

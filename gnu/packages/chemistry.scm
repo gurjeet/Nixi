@@ -161,15 +161,16 @@ only with Python 2 and NumPy < 1.9.")
 (define-public inchi
   (package
     (name "inchi")
-    (version "1.05")
+    ;; Update the inchi-doc native input when updating inchi.
+    (version "1.06")
     (source (origin
               (method url-fetch)
-              (uri (string-append "http://www.inchi-trust.org/download/"
+              (uri (string-append "https://www.inchi-trust.org/download/"
                                   (string-join (string-split version #\.) "")
                                   "/INCHI-1-SRC.zip"))
               (sha256
                (base32
-                "081pcjx1z5jm23fs1pl2r3bccia0ww8wfkzcjpb7byhn7b513hsa"))
+                "1zbygqn0443p0gxwr4kx3m1bkqaj8x9hrpch3s41py7jq08f6x28"))
               (file-name (string-append name "-" version ".zip"))))
     (build-system gnu-build-system)
     (arguments
@@ -222,7 +223,7 @@ only with Python 2 and NumPy < 1.9.")
                                   "/INCHI-1-DOC.zip"))
            (sha256
             (base32
-             "1id1qb2y4lwsiw91qr2yqpn6kxbwjwhjk0hb2rwk4fxhdqib6da6"))
+             "1kyda09i9p89xfq90ninwi7w13k1w3ljpl4gqdhpfhi5g8fgxx7f"))
            (file-name (string-append name "-" version ".zip"))))))
     (home-page "https://www.inchi-trust.org")
     (synopsis "Utility for manipulating machine-readable chemical structures")
@@ -521,19 +522,23 @@ usual algorithms you expect from a modern molecular dynamics implementation.")
 (define-public openbabel
   (package
     (name "openbabel")
-    (version "2.4.1")
+    (version "3.1.1")
     (source (origin
               (method url-fetch)
-              (uri (string-append "mirror://sourceforge/" name "/" name "/"
-                                  version "/" name "-" version ".tar.gz"))
+              (uri (string-append "https://github.com/openbabel/openbabel/"
+                                  "releases/download/openbabel-"
+                                  (string-replace-substring version "." "-")
+                                  "/openbabel-" version "-source.tar.bz2"))
               (sha256
                (base32
-                "1z3d6xm70dpfikhwdnbzc66j2l49vq105ch041wivrfz5ic3ch90"))
-              (patches
-               (search-patches "openbabel-fix-crash-on-nwchem-output.patch"))))
+                "0s0f4zib8vshfaywsr5bjjz55jwsg6yiz2qw4i5jm8wysn0q7v56"))))
     (build-system cmake-build-system)
     (arguments
-     `(#:configure-flags
+     `(;; FIXME: Disable tests on i686 to work around
+       ;; https://github.com/openbabel/openbabel/issues/2041.
+       #:tests? ,(or (%current-target-system)
+                     (not (string=? "i686-linux" (%current-system))))
+       #:configure-flags
        (list "-DOPENBABEL_USE_SYSTEM_INCHI=ON"
              (string-append "-DINCHI_LIBRARY="
                             (assoc-ref %build-inputs "inchi")

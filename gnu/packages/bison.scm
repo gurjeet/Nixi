@@ -1,7 +1,7 @@
 ;;; GNU Guix --- Functional package management for GNU
 ;;; Copyright © 2012, 2013, 2015, 2019 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2018 Tobias Geerinckx-Rice <me@tobias.gr>
-;;; Copyright © 2019 Efraim Flashner <efraim@flashner.co.il>
+;;; Copyright © 2019, 2020, 2021 Efraim Flashner <efraim@flashner.co.il>
 ;;; Copyright © 2020 B. Wilson <elaexuotee@wilsonb.com>
 ;;; Copyright © 2020 Jakub Kądziołka <kuba@kadziolka.net>
 ;;;
@@ -33,7 +33,7 @@
 (define-public bison
   (package
     (name "bison")
-    (version "3.5.3")
+    (version "3.7.5")
     (source
      (origin
       (method url-fetch)
@@ -41,7 +41,7 @@
                           version ".tar.xz"))
       (sha256
        (base32
-        "1i57hbczvr8674z73775jxdd3y59qggs5lmfd60gmwm5i1gmpy1b"))))
+        "1aridd55c3alxw9ryqh91gq57zcjr8qmxwnh49k66v9rpk2kpig8"))))
     (build-system gnu-build-system)
     (arguments
      '(;; Building in parallel on many-core systems may cause an error such as
@@ -67,17 +67,6 @@ simple tools through complex programming languages.
 
 Bison also provides an implementation of @command{yacc}, as specified by POSIX.")
     (license gpl3+)))
-
-(define-public bison-3.6
-  (package
-    (inherit bison)
-    (version "3.6.3")
-    (source
-     (origin
-      (method url-fetch)
-      (uri (string-append "mirror://gnu/bison/bison-" version ".tar.xz"))
-      (sha256
-       (base32 "0gdpnjh6ra9xa9vj6hzjdf0c04x4pjyy8vssm3qdb7fya4v7knq6"))))))
 
 (define-public bison-3.0
   (package

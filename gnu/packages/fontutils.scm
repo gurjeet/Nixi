@@ -8,10 +8,11 @@
 ;;; Copyright © 2017 Nikita <nikita@n0.is>
 ;;; Copyright © 2017, 2018, 2020 Tobias Geerinckx-Rice <me@tobias.gr>
 ;;; Copyright © 2018 Ricardo Wurmus <rekado@elephly.net>
-;;; Copyright © 2018, 2019 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2019, 2020 Marius Bakke <mbakke@fastmail.com>
 ;;; Copyright © 2020 Roel Janssen <roel@gnu.org>
 ;;; Copyright © 2020 Nicolas Goaziou <mail@nicolasgoaziou.fr>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -36,6 +37,7 @@
   #:use-module (gnu packages check)
   #:use-module (gnu packages compression)
   #:use-module (gnu packages datastructures)
+  #:use-module (gnu packages docbook)
   #:use-module (gnu packages flex)
   #:use-module (gnu packages fonts)
   #:use-module (gnu packages freedesktop)
@@ -58,6 +60,7 @@
   #:use-module (gnu packages xdisorg)
   #:use-module (gnu packages xml)
   #:use-module (gnu packages xorg)
+  #:use-module (gnu packages tex)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (guix packages)
   #:use-module (guix download)
@@ -73,14 +76,14 @@
 (define-public freetype
   (package
    (name "freetype")
-   (version "2.10.1")
-   (replacement freetype/fixed)
-   (source (origin
-            (method url-fetch)
-            (uri (string-append "mirror://savannah/freetype/freetype-"
-                                version ".tar.xz"))
-            (sha256 (base32
-                     "0vx2dg1jh5kq34dd6ifpjywkpapp8a7p1bvyq9yq5zi1i94gmnqn"))))
+   (version "2.10.4")
+   (source
+    (origin
+      (method url-fetch)
+      (uri (string-append "mirror://savannah/freetype/freetype-"
+                          version ".tar.xz"))
+      (sha256
+       (base32 "112pyy215chg7f7fmp2l9374chhhpihbh8wgpj5nj6avj3c59a46"))))
    (build-system gnu-build-system)
    (arguments
     ;; The use of "freetype-config" is deprecated, but other packages still
@@ -102,19 +105,6 @@ Type1, CID, CFF, Windows FON/FNT, X11 PCF, and others.  It supports high-speed
 anti-aliased glyph bitmap generation with 256 gray levels.")
    (license license:freetype)           ; some files have other licenses
    (home-page "https://www.freetype.org/")))
-
-(define freetype/fixed
-  ;; Security fix for CVE-2020-15999.
-  (package
-    (inherit freetype)
-    (version "2.10.4")
-    (source
-     (origin
-       (method url-fetch)
-       (uri (string-append "mirror://savannah/freetype/freetype-"
-                           version ".tar.xz"))
-       (sha256
-        (base32 "112pyy215chg7f7fmp2l9374chhhpihbh8wgpj5nj6avj3c59a46"))))))
 
 (define-public ttfautohint
   (package
@@ -329,58 +319,61 @@ Font Format (WOFF).")
     (license license:expat)))
 
 (define-public fontconfig
-  (package
-   (name "fontconfig")
-
-   ;; This replacement is not security-related, but works around the fact
-   ;; that gs-fonts are not recognized by newer versions of Pango, causing
-   ;; many applications to fail to find fonts otherwise.
-   (replacement fontconfig/font-dejavu)
-
-   (version "2.13.1")
-   (source (origin
+  (hidden-package
+   (package
+     (name "fontconfig-minimal")
+     (version "2.13.93")
+     (source (origin
             (method url-fetch)
             (uri (string-append
-                   "https://www.freedesktop.org/software/fontconfig/release/fontconfig-"
-                   version ".tar.bz2"))
-            (patches (search-patches "fontconfig-hurd-path-max.patch"))
+                  "https://www.freedesktop.org/software/"
+                  "fontconfig/release/fontconfig-" version ".tar.xz"))
             (sha256 (base32
-                     "0hb700a68kk0ip51wdlnjjc682kvlrmb6q920mzajykdk0mdsmgn"))))
-   (build-system gnu-build-system)
-   ;; In Requires or Requires.private of fontconfig.pc.
-   (propagated-inputs `(("expat" ,expat)
-                        ("freetype" ,freetype)
-                        ("libuuid" ,util-linux "lib")))
-   (inputs `(("gs-fonts" ,gs-fonts)))
-   (native-inputs
-    `(("gperf" ,gperf)
-      ("pkg-config" ,pkg-config)))
-   (arguments
-    `(#:configure-flags
-      (list "--with-cache-dir=/var/cache/fontconfig"
-            ;; register gs-fonts as default fonts
-            (string-append "--with-default-fonts="
-                           (assoc-ref %build-inputs "gs-fonts")
-                           "/share/fonts")
+                     "1850q4k80yxma5g3yxkvyv8i5a3xqzswwml8gjy3jmywx8qqd5pa"))))
+     (build-system gnu-build-system)
+     ;; In Requires or Requires.private of fontconfig.pc.
+     (propagated-inputs `(("expat" ,expat)
+                          ("freetype" ,freetype)
+                          ("libuuid" ,util-linux "lib")))
+     (inputs
+      ;; We use to use 'gs-fonts' but they are not recognized by newer versions
+      ;; of Pango, causing many applications to fail to find fonts otherwise.
+      `(("font-dejavu" ,font-dejavu)))
+     (native-inputs
+      `(("gperf" ,gperf)
+        ("pkg-config" ,pkg-config)
+        ("python" ,python-minimal)))    ;to avoid a cycle through tk
+     (arguments
+      `(#:configure-flags
+        (list "--disable-docs"
+              "--with-cache-dir=/var/cache/fontconfig"
+              ;; register the default fonts
+              (string-append "--with-default-fonts="
+                             (assoc-ref %build-inputs "font-dejavu")
+                             "/share/fonts")
 
-            ;; Register fonts from user and system profiles.
-            (string-append "--with-add-fonts="
-                           "~/.guix-profile/share/fonts,"
-                           "/run/current-system/profile/share/fonts")
-
-            ;; python is not actually needed
-            "PYTHON=false")
-      #:phases
-      (modify-phases %standard-phases
-        (replace 'install
-                 (lambda _
-                   ;; Don't try to create /var/cache/fontconfig.
-                   (invoke "make" "install"
-                           "fc_cachedir=$(TMPDIR)"
-                           "RUN_FC_CACHE_TEST=false"))))))
-   (synopsis "Library for configuring and customizing font access")
-   (description
-    "Fontconfig can discover new fonts when installed automatically;
+              ;; Register fonts from user and system profiles.
+              (string-append "--with-add-fonts="
+                             "~/.guix-profile/share/fonts,"
+                             "/run/current-system/profile/share/fonts"))
+        #:phases
+        (modify-phases %standard-phases
+          (add-before 'check 'skip-problematic-tests
+            (lambda _
+              (substitute* "test/run-test.sh"
+                ;; The crbug1004254 test attempts to fetch fonts from the
+                ;; network.
+                (("\\[ -x \"\\$BUILDTESTDIR\"/test-crbug1004254 \\]")
+                 "false"))))
+          (replace 'install
+            (lambda _
+              ;; Don't try to create /var/cache/fontconfig.
+              (invoke "make" "install"
+                      "fc_cachedir=$(TMPDIR)"
+                      "RUN_FC_CACHE_TEST=false"))))))
+     (synopsis "Library for configuring and customizing font access")
+     (description
+      "Fontconfig can discover new fonts when installed automatically;
 perform font name substitution, so that appropriate alternative fonts can
 be selected if fonts are missing;
 identify the set of fonts required to completely cover a set of languages;
@@ -388,17 +381,44 @@ have GUI configuration tools built as it uses an XML-based configuration file;
 efficiently and quickly find needed fonts among the set of installed fonts;
 be used in concert with the X Render Extension and FreeType to implement
 high quality, anti-aliased and subpixel rendered text on a display.")
-   ; The exact license is more X11-style than BSD-style.
-   (license (license:non-copyleft "file://COPYING"
-                       "See COPYING in the distribution."))
-   (home-page "https://www.freedesktop.org/wiki/Software/fontconfig")))
+                                        ; The exact license is more X11-style than BSD-style.
+     (license (license:non-copyleft "file://COPYING"
+                                    "See COPYING in the distribution."))
+     (home-page "https://www.freedesktop.org/wiki/Software/fontconfig"))))
 
-(define fontconfig/font-dejavu
+;;; The documentation of fontconfig is built in a separate package, as it
+;;; causes a dramatic increase in the size of the closure of fontconfig.  This
+;;; is intentionally named 'fontconfig', as it's intended as the user-facing
+;;; fontconfig package.
+(define-public fontconfig-with-documentation
   (package
     (inherit fontconfig)
-    (inputs
-     ;; XXX: Reuse the name to avoid having to override the configure flags.
-     `(("gs-fonts" ,font-dejavu)))))
+    (name "fontconfig")
+    (outputs (cons "doc" (package-outputs fontconfig)))
+    (arguments
+     (substitute-keyword-arguments (package-arguments fontconfig)
+       ((#:configure-flags configure-flags)
+        `(delete "--disable-docs" ,configure-flags))
+       ((#:phases phases '%standard-phases)
+        `(modify-phases ,phases
+           (add-after 'install 'move-man-sections
+             (lambda* (#:key outputs #:allow-other-keys)
+               ;; Move share/man/man{3,5} to the "doc" output.  Leave "man1" in
+               ;; "out" for convenience.
+               (let ((out (assoc-ref outputs "out"))
+                     (doc (assoc-ref outputs "doc")))
+                 (for-each (lambda (section)
+                             (let ((source (string-append out "/share/man/"
+                                                          section))
+                                   (target (string-append doc "/share/man/"
+                                                          section)))
+                               (copy-recursively source target)
+                               (delete-file-recursively source)))
+                           '("man3" "man5")))))))))
+    (native-inputs
+     (append (package-native-inputs fontconfig)
+             `(("docbook-utils" ,docbook-utils))))
+    (properties (alist-delete 'hidden? (package-properties fontconfig)))))
 
 (define-public t1lib
   (package
@@ -443,14 +463,14 @@ X11-system or any other graphical user interface.")
 (define-public teckit
   (package
     (name "teckit")
-    (version "2.5.9")                   ;signed by key 0xC9183BEA0288CDEE
+    (version "2.5.10")                  ; signed by key 0xC9183BEA0288CDEE
     (source
      (origin
        (method url-fetch)
        (uri (string-append "https://github.com/silnrsi/teckit/releases/"
                            "download/v" version "/teckit-" version ".tar.gz"))
        (sha256
-        (base32 "0gbxyip4wdibirdg2pvzayzyy927vxyd6dfyfiflx8zg88qzn8v8"))))
+        (base32 "12qnf8nhxyr4d5pc01s3vc6h726506957an4vvmmfz633cqi5796"))))
     (build-system gnu-build-system)
     (arguments
      '(#:configure-flags '("--disable-static")))
@@ -494,17 +514,6 @@ applications should be.")
         (base32
          "01jzhwnj1c3d68dmw15jdxly0hwkmd8ja4kw755rbkykn1ly2qyx"))))
    (build-system cmake-build-system)
-   (arguments
-    `(#:phases (modify-phases %standard-phases
-                 (add-after 'unpack 'adjust-test-PYTHONPATH
-                   (lambda _
-                     ;; Tell the build system not to override PYTHONPATH
-                     ;; while running the Python tests.
-                     (substitute* "Graphite.cmake"
-                       (("ENVIRONMENT PYTHONPATH=")
-                        (string-append "ENVIRONMENT PYTHONPATH="
-                                       (getenv "PYTHONPATH") ":")))
-                     #t)))))
    (native-inputs
     `(("python" ,python)
       ("python-fonttools" ,python-fonttools)))
@@ -575,16 +584,15 @@ using the above tables.")
 (define-public libspiro
   (package
     (name "libspiro")
-    (version "20190731")
-    (replacement libspiro-20200505)
+    (version "20200505")
     (source
      (origin
       (method url-fetch)
       (uri (string-append "https://github.com/fontforge/libspiro/releases"
-                          "/download/" version "/libspiro-" version ".tar.gz"))
+                          "/download/" version "/libspiro-dist-" version ".tar.gz"))
       (sha256
        (base32
-        "0m63x97b7aciviijprvy85gm03p2jsgslxn323zl9zn7qz6d3ir4"))))
+        "0j8fmyj4wz6mqk17dqs6f8jx0i52n68gv5px17qbrjnbilg9mih6"))))
     (build-system gnu-build-system)
     (arguments
      '(#:configure-flags '("--disable-static")))
@@ -594,19 +602,6 @@ using the above tables.")
 smooth contours with constant curvature at the spline joins.")
     (license license:gpl2+)
     (home-page "http://libspiro.sourceforge.net/")))
-
-(define libspiro-20200505
-  (package
-    (inherit libspiro)
-    (version "20200505")
-    (source
-     (origin
-      (method url-fetch)
-      (uri (string-append "https://github.com/fontforge/libspiro/releases"
-                          "/download/" version "/libspiro-dist-" version ".tar.gz"))
-      (sha256
-       (base32
-        "0j8fmyj4wz6mqk17dqs6f8jx0i52n68gv5px17qbrjnbilg9mih6"))))))
 
 (define-public libuninameslist
   (package
@@ -637,14 +632,14 @@ definitions.")
 (define-public fontforge
   (package
    (name "fontforge")
-   (version "20200314")
+   (version "20201107")
    (source (origin
             (method url-fetch)
             (uri (string-append
                   "https://github.com/fontforge/fontforge/releases/download/"
                   version "/fontforge-" version ".tar.xz"))
             (sha256
-             (base32 "0qf88wd6riycq56d24brybyc93ns74s0nyyavm43zp2kfcihn6fd"))))
+             (base32 "0y3c8x1i6yf6ak9m5dhr1nldgfmg7zhnwdfd57ffs698c27vmg38"))))
    (build-system cmake-build-system)
    (native-inputs
     `(("pkg-config" ,pkg-config)))

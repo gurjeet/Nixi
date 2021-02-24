@@ -101,7 +101,6 @@ using the CMake build system.")
               "Source/cmGlobalXCodeGenerator.cxx"
               "Source/cmLocalUnixMakefileGenerator3.cxx"
               "Source/cmExecProgramCommand.cxx"
-              "Utilities/Release/release_cmake.cmake"
               "Tests/CMakeLists.txt"
               "Tests/RunCMake/File_Generate/RunCMakeTest.cmake")
           (("/bin/sh") (which "sh")))
@@ -114,20 +113,26 @@ using the CMake build system.")
     ;; This test requires network access.
     "CTestTestUpload"
     ;; This test requires 'ldconfig' which is not available in Guix.
-    "RunCMake.install"))
+    "RunCMake.install"
+    ;; This test fails for unknown reason.
+    "RunCMake.file-GET_RUNTIME_DEPENDENCIES"
+    ;; This test requires the bundled libuv.
+    "BootstrapTest"))
 
 (define %preserved-third-party-files
   '(;; 'Source/cm_getdate.c' includes archive_getdate.c wholesale, so it must
     ;; be available along with the required headers.
     "Utilities/cmlibarchive/libarchive/archive_getdate.c"
-    "Utilities/cmlibarchive/libarchive/archive_getdate.h"))
+    "Utilities/cmlibarchive/libarchive/archive_getdate.h"
+    ;; CMake header wrappers.
+    "Utilities/cm3p"))
 
 ;;; The "bootstrap" CMake.  It is used to build 'cmake-minimal' below, as well
 ;;; as any dependencies that need cmake-build-system.
 (define-public cmake-bootstrap
   (package
     (name "cmake-bootstrap")
-    (version "3.16.5")
+    (version "3.19.2")
     (source (origin
               (method url-fetch)
               (uri (string-append "https://cmake.org/files/v"
@@ -135,7 +140,7 @@ using the CMake build system.")
                                   "/cmake-" version ".tar.gz"))
               (sha256
                (base32
-                "1z4bb8z6b4dvq5hrvajrf1hyybqay3xybyimf71w1jgcp180nxjz"))
+                "1w67w0ak6vf37501dlz9yhnzlvvpw1w10n2nm3hi7yxp4cxzvq73"))
               (modules '((guix build utils)
                          (ice-9 ftw)))
               (snippet
@@ -233,14 +238,13 @@ using the CMake build system.")
              (apply invoke "./configure" configure-flags))))))
     (inputs
      `(("bzip2" ,bzip2)
-       ("curl" ,curl-minimal)
+       ("curl" ,curl)
        ("expat" ,expat)
        ("file" ,file)
        ("libarchive" ,libarchive)
        ,@(if (hurd-target?)
              '()
              `(("libuv" ,libuv)))       ;not supported on the Hurd
-       ("ncurses" ,ncurses)             ;required for ccmake
        ("rhash" ,rhash)
        ("zlib" ,zlib)))
     (native-search-paths
@@ -286,9 +290,8 @@ and workspaces that can be used in the compiler environment of your choice.")
                              (define preserved-files ',%preserved-third-party-files))
                           exp))))))
     (inputs
-     `(("curl" ,curl)
-       ("jsoncpp" ,jsoncpp)
-       ,@(alist-delete "curl" (package-inputs cmake-bootstrap))))
+     `(("jsoncpp" ,jsoncpp)
+       ,@(package-inputs cmake-bootstrap)))
     (build-system cmake-build-system)
     (arguments
      `(#:configure-flags
@@ -303,6 +306,15 @@ and workspaces that can be used in the compiler environment of your choice.")
        #:phases
        (modify-phases %standard-phases
          ,@%common-build-phases
+         (add-after 'install 'delete-help-documentation
+           (lambda* (#:key outputs #:allow-other-keys)
+             (delete-file-recursively
+               (string-append (assoc-ref outputs "out")
+                              "/share/cmake-"
+                              ,(version-major+minor
+                                 (package-version cmake-bootstrap))
+                              "/Help"))
+             #t))
          (replace 'check
            (lambda* (#:key tests? parallel-tests? #:allow-other-keys)
              (let ((skipped-tests (list ,@%common-disabled-tests
@@ -326,39 +338,6 @@ and workspaces that can be used in the compiler environment of your choice.")
   (package
     (inherit cmake-minimal)
     (name "cmake")
-    (version "3.19.2")
-    ;; TODO: Move the following source field to the cmake-bootstrap package in
-    ;; the next rebuild cycle.
-    (source (origin
-              (inherit (package-source cmake-bootstrap))
-              (uri (string-append "https://cmake.org/files/v"
-                                  (version-major+minor version)
-                                  "/cmake-" version ".tar.gz"))
-              (sha256
-               (base32
-                "1w67w0ak6vf37501dlz9yhnzlvvpw1w10n2nm3hi7yxp4cxzvq73"))
-              (snippet
-               (match (origin-snippet (package-source cmake-bootstrap))
-                 ((_ _ exp ...)
-                  ;; Now we can delete the remaining software bundles.
-                  (append `(begin
-                             (define preserved-files
-                               '(,@%preserved-third-party-files
-                                 ;; TODO: Move this file to the
-                                 ;; %preserved-third-party-files variable in
-                                 ;; the next rebuild cycle.
-                                 "Utilities/cm3p" ;CMake header wrappers
-                                 ;; Use the bundled JsonCpp during bootstrap
-                                 ;; to work around a circular dependency.
-                                 ;; TODO: JsonCpp can be built with Meson
-                                 ;; instead of CMake, but meson-build-system
-                                 ;; currently does not support
-                                 ;; cross-compilation.
-                                 "Utilities/cmjsoncpp"
-                                 ;; LibUV is required to bootstrap the initial
-                                 ;; build system.
-                                 "Utilities/cmlibuv")))
-                          exp))))))
     (arguments
      (substitute-keyword-arguments (package-arguments cmake-minimal)
        ;; Use cmake-minimal this time.
@@ -380,42 +359,7 @@ and workspaces that can be used in the compiler environment of your choice.")
                  ,flags))
        ((#:phases phases)
         `(modify-phases ,phases
-           ;; TODO: Remove this override in the next rebuild cycle and adjust
-           ;; the %common-build-phases variable instead: the
-           ;; Utilities/Release/release_cmake.cmake file no longer exists in
-           ;; version 3.19.0.
-           (replace 'patch-bin-sh
-             (lambda _
-               ;; Replace "/bin/sh" by the right path in... a lot of
-               ;; files.
-               (substitute*
-                   '("Modules/CompilerId/Xcode-3.pbxproj.in"
-                     "Modules/Internal/CPack/CPack.RuntimeScript.in"
-                     "Source/cmGlobalXCodeGenerator.cxx"
-                     "Source/cmLocalUnixMakefileGenerator3.cxx"
-                     "Source/cmExecProgramCommand.cxx"
-                     "Tests/CMakeLists.txt"
-                     "Tests/RunCMake/File_Generate/RunCMakeTest.cmake")
-                 (("/bin/sh") (which "sh")))
-               #t))
-           ;; TODO: Remove this override in the next rebuild cycle and adjust
-           ;; the %common-disabled-tests variable instead.
-           (replace 'check
-             (lambda* (#:key tests? parallel-tests? #:allow-other-keys)
-               (let ((skipped-tests (list ,@%common-disabled-tests
-                                          ;; This test fails for unknown reason.
-                                          "RunCMake.file-GET_RUNTIME_DEPENDENCIES"
-                                          ;; This test requires the bundled libuv.
-                                          "BootstrapTest")))
-                 (if tests?
-                     (begin
-                       (invoke "ctest" "-j" (if parallel-tests?
-                                                (number->string (parallel-job-count))
-                                                "1")
-                               "--exclude-regex"
-                               (string-append "^(" (string-join skipped-tests "|") ")$")))
-                     (format #t "test suite not run~%"))
-                 #t)))
+           (delete 'delete-help-documentation)
            (add-after 'install 'move-html-doc
              (lambda* (#:key outputs #:allow-other-keys)
                (let ((out (assoc-ref outputs "out"))
@@ -428,6 +372,9 @@ and workspaces that can be used in the compiler environment of your choice.")
                                    (string-append doc html))
                  (delete-file-recursively (string-append out html))
                  #t)))))))
+    (inputs
+     `(("ncurses" ,ncurses)             ;required for ccmake
+       ,@(package-inputs cmake-minimal)))
     ;; Extra inputs required to build the documentation.
     (native-inputs
      `(,@(package-native-inputs cmake-minimal)

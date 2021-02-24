@@ -576,9 +576,6 @@ compliance.")
        (modify-phases %standard-phases
          (replace 'check
            (lambda _
-             (setenv "PYTHONPATH"
-                     (string-append (getcwd) ":"
-                                    (getenv "PYTHONPATH")))
              (invoke "pytest"))))))
     (propagated-inputs
      `(("python-isort" ,python-isort)
@@ -1075,7 +1072,7 @@ supported by the MyPy typechecker.")
        ("python-importlib-metadata" ,python-importlib-metadata)
        ("python-lxml" ,python-lxml)
        ("python-psutil" ,python-psutil)
-       ("python-pytest" ,python-pytest-6)
+       ("python-pytest" ,python-pytest)
        ("python-pytest-cov" ,python-pytest-cov)
        ("python-pytest-forked" ,python-pytest-forked)
        ("python-pytest-xdist" ,python-pytest-xdist)
@@ -1095,6 +1092,61 @@ any Python VM with basically no runtime overhead.")
     ;; Foundation License version 2: stdlib-samples/*, mypyc/lib-rt/pythonsupport.h and
     ;; mypyc/lib-rt/getargs.c
     (license (list license:expat license:psfl))))
+
+;;; This variant exists to break a cycle between python-pylama and python-isort.
+(define-public python-mypy-minimal
+  (hidden-package
+   (package
+     (inherit python-mypy)
+     (name "python-mypy-minimal")
+     (arguments
+      `(#:tests? #f
+        #:phases (modify-phases %standard-phases
+                   ;; XXX: Fails with: "In procedure utime: No such file or
+                   ;; directory".
+                   (delete 'ensure-no-mtimes-pre-1980))))
+     (native-inputs '()))))
+
+(define-public python-pylama
+  (package
+    (name "python-pylama")
+    (version "7.7.1")
+    (source
+     (origin
+       (method url-fetch)
+       (uri (pypi-uri "pylama" version))
+       (sha256
+        (base32
+         "13vx7daqz2918y9s8q3v2i3xaq3ah43a9p58srqi6hqskkpm7blv"))))
+    (build-system python-build-system)
+    (arguments
+     `(#:phases (modify-phases %standard-phases
+                  (add-after 'unpack 'disable-failing-tests
+                    (lambda _
+                      ;; Fails with: "ImportError: cannot import name
+                      ;; 'commented_out_code_line_numbers' from 'eradicate'".
+                      (delete-file "pylama/lint/pylama_eradicate.py")
+                      ;; Requires python-astroid, which fails to build on
+                      ;; Python 3.9+ (see:
+                      ;; https://github.com/PyCQA/astroid/issues/881).
+                      (delete-file "pylama/lint/pylama_pylint.py"))))))
+    (native-inputs
+     `(("python-py" ,python-py)
+       ("python-pytest" ,python-pytest)
+       ("python-radon" ,python-radon)))
+    (propagated-inputs
+     `(("python-mccabe" ,python-mccabe)
+       ("python-mypy", python-mypy-minimal)
+       ("python-pycodestyle" ,python-pycodestyle)
+       ("python-pydocstyle" ,python-pydocstyle)
+       ("python-pyflakes" ,python-pyflakes)))
+    (home-page "https://github.com/klen/pylama")
+    (synopsis "Code audit tool for python")
+    (description "Pylama is a code audit tool for Python and JavaScript to check
+for style, syntax and other code health metrics.  It is essentially a
+convenient wrapper above tools such as Pyflakes, pydocstyle, pycodestyle and
+McCabe, among others.")
+    (license license:lgpl3+)))
 
 (define-public python-eradicate
   (package

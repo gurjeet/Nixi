@@ -132,9 +132,11 @@
     (license license:gpl2)))
 
 ;; Building from recent Git because the official 5.0 release no longer builds.
+;; Following commits and revision numbers of beta versions listed at
+;; https://dolphin-emu.org/download/.
 (define-public dolphin-emu
-  (let ((commit "a9745400ec5cea7e55d94955afbdc44d1a4982d1")
-        (revision "7"))
+  (let ((commit "a34823df61df65168aa40ef5e82e44defd4a0138")
+        (revision "13178"))
     (package
       (name "dolphin-emu")
       (version (git-version "5.0" revision commit))
@@ -160,7 +162,7 @@
              #t))
          (sha256
           (base32
-           "0ic08ii4vlqlmk2wkfc99jiy6nji2wfq56r7slj23wgvhznnaabk"))))
+           "0j6hnj60iai366kl0kdbn1jkwc183l02g65mp2vq4qb2yd4399l1"))))
       (build-system cmake-build-system)
       (arguments
        '(#:tests? #f
@@ -183,11 +185,9 @@
                  (copy-file "font_western.bin" "../Data/Sys/GC/font_western.bin")
                  (chdir "..")
                  (substitute* "Source/Core/VideoBackends/Vulkan/VulkanLoader.cpp"
-                              (("\"vulkan\", 1") (string-append "\"vulkan\"")))
-                 (substitute* "Source/Core/VideoBackends/Vulkan/VulkanLoader.cpp"
-                              (("\"vulkan\"") (string-append "\"" libvulkan "\"")))
-                 (substitute* "Source/Core/VideoBackends/Vulkan/VulkanLoader.cpp"
-                              (("Common::DynamicLibrary::GetVersionedFilename") ""))
+                   (("\"vulkan\", 1") (string-append "\"vulkan\""))
+                   (("\"vulkan\"") (string-append "\"" libvulkan "\""))
+                   (("Common::DynamicLibrary::GetVersionedFilename") ""))
                  #t))))
 
          ;; The FindGTK2 cmake script only checks hardcoded directories for
@@ -1975,17 +1975,6 @@ performance, features, and ease of use.")
                     (guix build utils))
          #:phases
          (modify-phases %standard-phases
-           (add-after 'unpack 'install-bindings-to-python-output
-             (lambda* (#:key outputs #:allow-other-keys)
-               ;; python-build-system will build the bindings and install them to
-               ;; the "out" output, so change the build-internal names of the
-               ;; outputs.
-               ;;
-               ;; TODO: remove this once #40469 lands, through the core-updates
-               ;; holding zone, on master.
-               (set-car! (assoc "out" outputs) "lib")
-               (set-car! (assoc "python" outputs) "out")
-               #t))
            (add-before 'build 'build-library
              (lambda* (#:key inputs #:allow-other-keys)
                (invoke "make"
@@ -1998,7 +1987,7 @@ performance, features, and ease of use.")
                        "UNICORN_STATIC=no"
                        (string-append
                         "PREFIX="
-                        (assoc-ref outputs "lib")))))
+                        (assoc-ref outputs "out")))))
            (add-before 'build 'prepare-bindings
              (lambda* (#:key outputs #:allow-other-keys)
                (chdir "bindings/python")
@@ -2011,7 +2000,7 @@ performance, features, and ease of use.")
                  (("_path_list = \\[.*")
                   (string-append
                    "_path_list = [\""
-                   (assoc-ref outputs "lib")
+                   (assoc-ref outputs "out")
                    ;; eat the rest of the list
                    "/lib\"] + 0*[")))
                #t))
@@ -2032,10 +2021,10 @@ performance, features, and ease of use.")
                (let* ((python-samples (find-files "." "sample_.*"))
                       (c-samples (find-files "../../samples" ".*\\.c"))
                       (python-docdir
-                        (string-append (assoc-ref outputs "out")
+                        (string-append (assoc-ref outputs "python")
                                        "/share/doc/unicorn/samples"))
                       (c-docdir
-                        (string-append (assoc-ref outputs "lib")
+                        (string-append (assoc-ref outputs "out")
                                        "/share/doc/unicorn/samples")))
                  (for-each (cut install-file <> c-docdir) c-samples)
                  (for-each (cut install-file <> python-docdir) python-samples)

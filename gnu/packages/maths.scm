@@ -2,7 +2,7 @@
 ;;; Copyright © 2013, 2014, 2015, 2016, 2019, 2020 Andreas Enge <andreas@enge.fr>
 ;;; Copyright © 2013 Nikita Karetnikov <nikita@karetnikov.org>
 ;;; Copyright © 2014, 2016, 2017 John Darrington <jmd@gnu.org>
-;;; Copyright © 2014, 2015, 2016, 2017, 2018, 2019, 2020 Eric Bavier <bavier@posteo.net>
+;;; Copyright © 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021 Eric Bavier <bavier@posteo.net>
 ;;; Copyright © 2014 Federico Beffa <beffa@fbengineering.ch>
 ;;; Copyright © 2014 Mathieu Lirzin <mathieu.lirzin@openmailbox.org>
 ;;; Copyright © 2015, 2016, 2017, 2018, 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
@@ -327,8 +327,8 @@ programming language.")
                      (let* ((out (assoc-ref outputs "out"))
                             (bin (string-append out "/bin")))
                        (wrap-program (string-append bin "/units_cur")
-                         `("PYTHONPATH" ":" prefix
-                           ,(search-path-as-string->list (getenv "PYTHONPATH"))))
+                         `("GUIX_PYTHONPATH" ":" prefix
+                           ,(search-path-as-string->list (getenv "GUIX_PYTHONPATH"))))
                        #t))))))
    (synopsis "Conversion between thousands of scales")
    (description
@@ -477,35 +477,38 @@ precision floating point numbers.")
     (build-system gnu-build-system)
     (arguments
      (let ((system (%current-system)))
-       (cond
-        ((or (string-prefix? "aarch64" system)
-             (string-prefix? "powerpc" system))
-         ;; Some sparse matrix tests are failing on AArch64 and PowerPC:
-         ;; https://lists.gnu.org/archive/html/bug-gsl/2020-04/msg00001.html
-         '(#:phases (modify-phases %standard-phases
-                      (add-before 'check 'disable-failing-tests
-                        (lambda _
-                          (substitute* "spmatrix/test.c"
-                            ((".*test_complex.*") "\n"))
-                          #t)))))
-        ((string-prefix? "i686" system)
-         ;; There are rounding issues with these tests on i686:
-         ;; https://lists.gnu.org/archive/html/bug-gsl/2016-10/msg00000.html
-         ;; https://lists.gnu.org/archive/html/bug-gsl/2020-04/msg00000.html
-         '(#:phases (modify-phases %standard-phases
-                      (add-before 'check 'disable-failing-tests
-                        (lambda _
-                          (substitute* "linalg/test.c"
-                            ((".*gsl_test\\(test_LU_decomp.*") "\n")
-                            ((".*gsl_test\\(test_LUc_decomp.*") "\n")
-                            ((".*gsl_test\\(test_cholesky_decomp.*") "\n")
-                            ((".*gsl_test\\(test_COD_lssolve2.*") "\n"))
-                          (substitute* "spmatrix/test.c"
-                            ((".*test_all.*") "\n")
-                            ((".*test_float.*") "\n")
-                            ((".*test_complex.*") "\n"))
-                          #t)))))
-        (else '()))))
+       `(#:configure-flags (list "--disable-static") ;halves package size
+         #:phases
+         (modify-phases %standard-phases
+           ,@(cond
+              ((or (string-prefix? "aarch64" system)
+                   (string-prefix? "powerpc" system))
+               ;; Some sparse matrix tests are failing on AArch64 and PowerPC:
+               ;; https://lists.gnu.org/archive/html/bug-gsl/2020-04/msg00001.html
+               '((add-before 'check 'disable-failing-tests
+                   (lambda _
+                     (substitute* "spmatrix/test.c"
+                       ((".*test_complex.*") "\n"))
+                     #t))))
+
+              ((string-prefix? "i686" system)
+               ;; There are rounding issues with these tests on i686:
+               ;; https://lists.gnu.org/archive/html/bug-gsl/2016-10/msg00000.html
+               ;; https://lists.gnu.org/archive/html/bug-gsl/2020-04/msg00000.html
+               '((add-before 'check 'disable-failing-tests
+                   (lambda _
+                     (substitute* "linalg/test.c"
+                       ((".*gsl_test\\(test_LU_decomp.*") "\n")
+                       ((".*gsl_test\\(test_LUc_decomp.*") "\n")
+                       ((".*gsl_test\\(test_cholesky_decomp.*") "\n")
+                       ((".*gsl_test\\(test_COD_lssolve2.*") "\n"))
+                     (substitute* "spmatrix/test.c"
+                       ((".*test_all.*") "\n")
+                       ((".*test_float.*") "\n")
+                       ((".*test_complex.*") "\n"))
+                     #t))))
+
+              (else '()))))))
     (home-page "https://www.gnu.org/software/gsl/")
     (synopsis "Numerical library for C and C++")
     (description
@@ -1077,7 +1080,7 @@ incompatible with HDF5.")
 (define-public hdf5-1.8
   (package
     (name "hdf5")
-    (version "1.8.21")
+    (version "1.8.22")
     (source
      (origin
       (method url-fetch)
@@ -1092,9 +1095,8 @@ incompatible with HDF5.")
                                    (string-append major minor)))
                                 "/src/hdf5-" version ".tar.bz2")))
       (sha256
-       (base32 "03glk4w4wyb1jyb443g53y3y1ncnf6mj2cqwm6avfr2awkgb3cg5"))
-      (patches (search-patches "hdf5-config-date.patch"
-                               "hdf5-1.8-mpi-deprecations.patch"))))
+       (base32 "194ki2s5jrgl4czkvy5nc9nwjyapah0fj72l0gb0aysplp38i6v8"))
+      (patches (search-patches "hdf5-config-date.patch"))))
     (build-system gnu-build-system)
     (inputs
      `(("zlib" ,zlib)))
@@ -2010,7 +2012,7 @@ script files.")
        ,@(package-inputs octave-cli)))
     (native-inputs
      `(("qttools" , qttools) ;for lrelease
-       ("texlive" ,(texlive-union (list texlive-epsf))) ; for texi2dvi
+       ("texlive" ,(texlive-updmap.cfg (list texlive-epsf))) ; for texi2dvi
        ,@(package-native-inputs octave-cli)))
     (arguments
      (substitute-keyword-arguments (package-arguments octave-cli)
@@ -3505,7 +3507,7 @@ point numbers.")
 (define-public wxmaxima
   (package
     (name "wxmaxima")
-    (version "20.12.2")
+    (version "21.01.0")
     (source
      (origin
        (method git-fetch)
@@ -3514,13 +3516,12 @@ point numbers.")
              (commit (string-append "Version-" version))))
        (file-name (git-file-name name version))
        (sha256
-        (base32 "1rxnxk7yanb9ac5pxbii6k7gg3b09pbp9rmwvsvgpbrk17mg79r9"))))
+        (base32 "1bnv9410xmk73adqi4r6w0qgbqk7qig0vr5219839c09xagyyd12"))))
     (build-system cmake-build-system)
     (native-inputs
      `(("gettext" ,gettext-minimal)))
     (inputs
-     `(("libomp" ,libomp)
-       ("wxwidgets" ,wxwidgets)
+     `(("wxwidgets" ,wxwidgets)
        ("maxima" ,maxima)
        ;; Runtime support.
        ("adwaita-icon-theme" ,adwaita-icon-theme)
@@ -3637,16 +3638,17 @@ parts of it.")
 (define-public openblas
   (package
     (name "openblas")
-    (version "0.3.9")
+    (version "0.3.13")
     (source
      (origin
-       (method url-fetch)
-       (uri (string-append "mirror://sourceforge/openblas/v" version "/OpenBLAS%20"
-                           version "%20version.tar.gz"))
-       (file-name (string-append name "-" version ".tar.gz"))
+       (method git-fetch)
+       (uri (git-reference
+             (url "https://github.com/xianyi/OpenBLAS")
+             (commit (string-append "v" version))))
+       (file-name (git-file-name name version))
        (sha256
         (base32
-         "14iz9xnrb9xiwgj84j94mc74gg0zn2vsy9fmsijxxma1n7dck4w3"))))
+         "14jxh0v3jfbw4mfjx4mcz4dd51lyq7pqvh9k8dg94539ypzjr2lj"))))
     (build-system gnu-build-system)
     (arguments
      `(#:test-target "test"
@@ -4454,7 +4456,7 @@ set.")
      `(("doc++" ,doc++)
        ("netpbm" ,netpbm)
        ("perl" ,perl)                   ; needed to run 'ppmquant' during tests
-       ("texlive" ,(texlive-union (list texlive-xypic
+       ("texlive" ,(texlive-updmap.cfg (list texlive-xypic
                                         texlive-cm
                                         texlive-latex-hyperref
                                         texlive-bibtex)))
@@ -4474,12 +4476,6 @@ set.")
                            "--with-blas")
        #:phases
        (modify-phases %standard-phases
-         (add-before 'build 'set-HOME
-           (lambda _
-             ;; FIXME: texlive-union does not find the built
-             ;; metafonts, so it tries to generate them in HOME.
-             (setenv "HOME" "/tmp")
-             #t))
          (add-before 'configure 'chdir-src
            (lambda _ (chdir "src")))
          (replace 'configure

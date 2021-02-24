@@ -24,6 +24,7 @@
 ;;; Copyright © 2020 Alexandros Theodotou <alex@zrythm.org>
 ;;; Copyright © 2020 Justus Winter <justus@sequoia-pgp.org>
 ;;; Copyright © 2020 Vinicius Monego <monego@posteo.net>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -477,13 +478,13 @@ risk.")
 (define-public python-certifi
   (package
     (name "python-certifi")
-    (version "2020.11.8")
+    (version "2020.12.5")
     (source (origin
               (method url-fetch)
               (uri (pypi-uri "certifi" version))
               (sha256
                (base32
-                "1x4w18gm71dbwys5g2mbcnbw27b3dvphj5d56icg5ys45h4yypgh"))))
+                "177mdbw0livdjvp17sz6wsfrc32838m9y59v871gpgv2888raj8s"))))
     (build-system python-build-system)
     (arguments '(#:tests? #f))          ;no tests
     (home-page "https://certifi.io/")
@@ -499,14 +500,14 @@ is used by the Requests library to verify HTTPS requests.")
 (define-public python-cryptography-vectors
   (package
     (name "python-cryptography-vectors")
-    (version "3.1.1")
+    (version "3.3.1")
     (source
      (origin
        (method url-fetch)
        (uri (pypi-uri "cryptography_vectors" version))
        (sha256
         (base32
-         "1xp2j79c1y8qj4b97ygx451gzp8l4cp830hnvg3zw8j134bcaaam"))))
+         "192wix3sr678x21brav5hgc6j93l7ab1kh69p2scr3fsblq9qy03"))))
     (build-system python-build-system)
     (home-page "https://github.com/pyca/cryptography")
     (synopsis "Test vectors for the cryptography package")
@@ -521,14 +522,14 @@ is used by the Requests library to verify HTTPS requests.")
 (define-public python-cryptography
   (package
     (name "python-cryptography")
-    (version "3.1.1")
+    (version "3.3.1")
     (source
      (origin
        (method url-fetch)
        (uri (pypi-uri "cryptography" version))
        (sha256
         (base32
-         "0z81q4d1nangw3r0v5f41mfl4d9r04qnbayl5ll5v5jpcfhwd7wx"))))
+         "1ribd1vxq9wwz564mg60dzcy699gng54admihjjkgs9dx95pw5vy"))))
     (build-system python-build-system)
     (inputs
      `(("openssl" ,openssl)))
@@ -570,14 +571,14 @@ message digests and key derivation functions.")
 (define-public python-pyopenssl
   (package
     (name "python-pyopenssl")
-    (version "19.1.0")
+    (version "20.0.0")
     (source
      (origin
        (method url-fetch)
        (uri (pypi-uri "pyOpenSSL" version))
        (sha256
         (base32
-         "01wmsq6w0frzbr3zps4ga9kmqjidp2h317jwpq1g9ah24r5lj94s"))))
+         "1i8ab5zn9i9iq2ksizp3rd42v157kacddzz88kviqw3kpp68xw4j"))))
     (build-system python-build-system)
     (arguments
      '(#:phases
@@ -589,7 +590,7 @@ message digests and key derivation functions.")
              ;; PyOpenSSL runs tests against a certificate with a fixed
              ;; expiry time.  To ensure successful builds in the future,
              ;; set the time to roughly the release date.
-             (invoke "faketime" "2019-01-01" "py.test" "-v" "-k"
+             (invoke "faketime" "2020-12-01" "py.test" "-v" "-k"
                      (string-append
                       ;; This test tries to look up certificates from
                       ;; the compiled-in default path in OpenSSL, which
@@ -597,7 +598,10 @@ message digests and key derivation functions.")
                       "not test_fallback_default_verify_paths "
                       ;; This test attempts to make a connection to
                       ;; an external web service.
-                      "and not test_set_default_verify_paths")))))))
+                      "and not test_set_default_verify_paths "
+                      ;; Fails on i686-linux and possibly other 32-bit platforms
+                      ;; https://github.com/pyca/pyopenssl/issues/974
+                      "and not test_verify_with_time")))))))
     (propagated-inputs
      `(("python-cryptography" ,python-cryptography)
        ("python-six" ,python-six)))
@@ -786,31 +790,20 @@ PKCS#8, PKCS#12, PKCS#5, X.509 and TSP.")
            (substitute* "setup.py"
              (("\"wheel\"") ""))
            ;; Remove bundled libsodium.
-           (delete-file-recursively "src/libsodium")
-           #t))
+           (delete-file-recursively "src/libsodium")))
        (sha256
         (base32
          "01b56hxrbif3hx8l6rwz5kljrgvlbj7shmmd2rjh0hn7974a5sal"))))
     (build-system python-build-system)
     (arguments
-     `(#:modules (,@%python-build-system-modules
-                  (guix build utils)
-                  (ice-9 ftw)
-                  (srfi srfi-26))
-       #:phases
-       (modify-phases (@ (guix build python-build-system) %standard-phases)
+     `(#:phases
+       (modify-phases %standard-phases
          (add-before 'build 'use-system-sodium
            (lambda _
-             (setenv "SODIUM_INSTALL" "system")
-             #t))
+             (setenv "SODIUM_INSTALL" "system")))
          (replace 'check
            (lambda _
-             (let ((build-directory
-                    (car (scandir "build" (cut string-prefix? "lib" <>)))))
-               (setenv "PYTHONPATH"
-                       (string-append "./build/" build-directory ":"
-                                      (getenv "PYTHONPATH")))
-               (invoke "pytest" "-vv")))))))
+             (invoke "pytest" "-vv"))))))
     (native-inputs
      `(("python-hypothesis" ,python-hypothesis)
        ("python-pytest" ,python-pytest)))

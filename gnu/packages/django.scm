@@ -7,6 +7,7 @@
 ;;; Copyright © 2018 Vijayalakshmi Vedantham <vijimay12@gmail.com>
 ;;; Copyright © 2019 Sam <smbaines8@gmail.com>
 ;;; Copyright © 2020 Marius Bakke <marius@gnu.org>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -74,23 +75,10 @@
              (substitute* "tests/settings_tests/tests.py"
                ((".*def test_incorrect_timezone.*" all)
                 (string-append "    @unittest.skipIf(True, 'Disabled by Guix')\n"
-                               all)))
-
-             ;; Preserve the PYTHONPATH created by Guix when running the tests.
-             (substitute* "tests/admin_scripts/tests.py"
-               (("python_path = \\[")
-                (string-append "python_path = ['"
-                               (string-join
-                                (string-split (getenv "PYTHONPATH") #\:)
-                                "','")
-                               "', ")))
-
-             #t))
+                               all)))))
          (replace 'check
            (lambda _
              (with-directory-excursion "tests"
-               (setenv "PYTHONPATH"
-                       (string-append "..:" (getenv "PYTHONPATH")))
                (invoke "python" "runtests.py"
                        ;; By default tests run in parallel, which may cause
                        ;; various race conditions.  Run sequentially for
@@ -322,23 +310,18 @@ size and quality.")
          (replace 'check
            (lambda* (#:key tests? inputs outputs #:allow-other-keys)
              (if tests?
-                 (begin
-                   (add-installed-pythonpath inputs outputs)
-                   (setenv "PYTHONPATH"
-                           (string-append ".:" ;for pytest_django_test
-                                          (getenv "PYTHONPATH")))
-                   (setenv "PYTEST_DJANGO_TEST_RUNNER" "pytest")
-                   (setenv "DJANGO_SETTINGS_MODULE"
-                           "pytest_django_test.settings_sqlite_file")
-                   (invoke "pytest" "-vv" "-k"
-                           ;; FIXME: these tests fail to locate Django templates ...
-                           (string-append "not test_django_not_loaded_without_settings"
-                                          " and not test_settings"
-                                          ;; ... and this does not discover
-                                          ;; 'pytest_django_test'.
-                                          " and not test_urls_cache_is_cleared")))
-                 (format #t "test suite not run~%"))
-             #t)))))
+               (begin
+                 (setenv "PYTEST_DJANGO_TEST_RUNNER" "pytest")
+                 (setenv "DJANGO_SETTINGS_MODULE"
+                         "pytest_django_test.settings_sqlite_file")
+                 (invoke "python" "-m" "pytest" "-vv" "-k"
+                         ;; FIXME: these tests fail to locate Django templates ...
+                         (string-append "not test_django_not_loaded_without_settings"
+                                        " and not test_settings"
+                                        ;; ... and this does not discover
+                                        ;; 'pytest_django_test'.
+                                        " and not test_urls_cache_is_cleared")))
+               (format #t "test suite not run~%")))))))
     (native-inputs
      `(("python-django" ,python-django)
        ("python-setuptools-scm" ,python-setuptools-scm)
@@ -705,9 +688,6 @@ project aims to bulk update given objects using one query over Django ORM.")
        (modify-phases %standard-phases
          (replace 'check
            (lambda _
-             (setenv "PYTHONPATH"
-                     (string-append "./build/lib:"
-                                    (getenv "PYTHONPATH")))
              (invoke "coverage" "run" "--source" "contact_form"
                      "runtests.py"))))))
     (native-inputs
@@ -766,14 +746,9 @@ entries, photos, book chapters, or anything else.")
                 (which "env")))))
          (replace 'check
            (lambda*(#:key tests? #:allow-other-keys)
-             (or
-              (not tests?)
-              (begin
-                (setenv "PYTHONPATH"
-                        (string-append (getcwd) ":"
-                                       (getenv "PYTHONPATH")))
-                (setenv "DJANGO_SETTINGS_MODULE" "tests.settings")
-                (invoke "django-admin" "test" "tests"))))))))
+             (when tests?
+               (setenv "DJANGO_SETTINGS_MODULE" "tests.settings")
+               (invoke "django-admin" "test" "tests")))))))
     (native-inputs
      `(("python-django" ,python-django)))
     (propagated-inputs
@@ -900,10 +875,8 @@ using Python multiprocessing.")
      `(#:phases (modify-phases %standard-phases
                   (replace 'check
                     (lambda _
-                      (setenv "PYTHONPATH" (string-append "./test_project:"
-                                                          "./build/lib:.:"
-                                                          (getenv "PYTHONPATH")))
-                      (invoke "django-admin.py" "test" "--settings=settings"))))))
+                      (invoke "python" "django-admin.py"
+                              "test" "--settings=settings"))))))
     (native-inputs
      `(("python-django" ,python-django)))
     (home-page "https://github.com/jazzband/django-sortedm2m")
@@ -929,10 +902,8 @@ the order of added relations.")
      '(#:phases (modify-phases %standard-phases
                   (replace 'check
                     (lambda _
-                      (setenv "PYTHONPATH" (string-append ".:"
-                                                          (getenv "PYTHONPATH")))
                       (setenv "DJANGO_SETTINGS_MODULE" "tests.test_settings")
-                      (invoke "django-admin.py" "test" "-v2"))))))
+                      (invoke "python" "django-admin.py" "test" "-v2"))))))
     (native-inputs
      `(("python-django" ,python-django)))
     (home-page "https://github.com/django-compressor/django-appconf")
@@ -964,9 +935,7 @@ name is purely coincidental.")
      '(#:phases (modify-phases %standard-phases
                   (replace 'check
                     (lambda _
-                      (setenv "PYTHONPATH"
-                              (string-append "./tests/test_project:./build/lib:"
-                                             (getenv "PYTHONPATH")))
+                      (setenv "PYTHONPATH" "./tests/test_project")
                       (setenv "DJANGO_SETTINGS_MODULE" "project.settings")
                       (invoke "pytest" "-vv"))))))
     (native-inputs
@@ -1267,15 +1236,11 @@ to ElasticSearch.")
                       ;; Do not depend on compatibility package for old
                       ;; Python versions.
                       (substitute* "requirements.txt"
-                        (("enum-compat") ""))
-                      #t))
+                        (("enum-compat") ""))))
                   (replace 'check
                     (lambda* (#:key tests? #:allow-other-keys)
                       (if tests?
                           (begin
-                            (setenv "PYTHONPATH"
-                                    (string-append "./build/lib:.:"
-                                                   (getenv "PYTHONPATH")))
                             (setenv "DJANGO_SETTINGS_MODULE"
                                     "test_project.settings")
                             (invoke "pytest" "-vv" "--doctest-modules"

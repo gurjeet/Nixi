@@ -5,7 +5,7 @@
 ;;; Copyright © 2016 Federico Beffa <beffa@fbengineering.ch>
 ;;; Copyright © 2016, 2017 Nikita <nikita@n0.is>
 ;;; Copyright © 2016, 2017 Andy Patterson <ajpatter@uwaterloo.ca>
-;;; Copyright © 2017, 2019 Ricardo Wurmus <rekado@elephly.net>
+;;; Copyright © 2017, 2019, 2020 Ricardo Wurmus <rekado@elephly.net>
 ;;; Copyright © 2017, 2018, 2019 Efraim Flashner <efraim@flashner.co.il>
 ;;; Copyright © 2017, 2019, 2020 Tobias Geerinckx-Rice <me@tobias.gr>
 ;;; Copyright © 2018 Benjamin Slade <slade@jnanam.net>
@@ -221,7 +221,7 @@ interface to the Tk widget system.")
 (define-public ecl
   (package
     (name "ecl")
-    (version "20.4.24")
+    (version "21.2.1")
     (source
      (origin
        (method url-fetch)
@@ -229,14 +229,20 @@ interface to the Tk widget system.")
              "https://common-lisp.net/project/ecl/static/files/release/"
              name "-" version ".tgz"))
        (sha256
-        (base32 "01qgdmr54wkj854f69qdm9sybrvd6gd21dpx4askdaaqybnkh237"))))
+        (base32 "000906nnq25177bgsfndiw3iqqgrjc9spk10hzk653sbz3f7anmi"))))
     (build-system gnu-build-system)
     ;; src/configure uses 'which' to confirm the existence of 'gzip'.
     (native-inputs
      `(("cl-asdf" ,cl-asdf)
        ("which" ,which)
        ("texinfo" ,texinfo)))
-    (inputs
+    ;; When ECL is embedded in a program that wants to use Common Lisp as an
+    ;; extension language, libgmp, libatomic-ops, libgc and libffi must be
+    ;; present when compiling the program because they are required by ECL's
+    ;; header file.
+    ;; Therefore we put these libraries in 'propagated-inputs' instead
+    ;; of 'inputs'.
+    (propagated-inputs
      `(("gmp" ,gmp)
        ("libatomic-ops" ,libatomic-ops)
        ("libgc" ,libgc)
@@ -435,7 +441,7 @@ an interpreter, a compiler, a debugger, and much more.")
        ("ed" ,ed)
        ("inetutils" ,inetutils)         ;for hostname(1)
        ("texinfo" ,texinfo)
-       ("texlive" ,(texlive-union (list texlive-tex-texinfo)))
+       ("texlive" ,(texlive-updmap.cfg (list texlive-tex-texinfo)))
        ("which" ,which)
        ("zlib" ,zlib)))
     (arguments
@@ -507,10 +513,6 @@ an interpreter, a compiler, a debugger, and much more.")
                  (("\\(deftest grent\\.[12]" all)
                   (string-append "#+nil ;disabled by Guix\n" all))))
              #t))
-         ;; FIXME: the texlive-union insists on regenerating fonts.  It stores
-         ;; them in HOME, so it needs to be writeable.
-         (add-before 'build 'set-HOME
-           (lambda _ (setenv "HOME" "/tmp") #t))
          (replace 'build
            (lambda* (#:key outputs #:allow-other-keys)
              (setenv "CC" "gcc")

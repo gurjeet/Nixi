@@ -1,5 +1,5 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2012, 2013, 2014, 2015, 2017, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2014, 2015, 2017, 2019, 2020, 2021 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2013 Andreas Enge <andreas@enge.fr>
 ;;; Copyright © 2014, 2015, 2018 Mark H Weaver <mhw@netris.org>
 ;;; Copyright © 2015 Taylan Ulrich Bayırlı/Kammer <taylanbayirli@gmail.com>
@@ -30,6 +30,7 @@
 ;;; Copyright © 2020 Lars-Dominik Braun <lars@6xq.net>
 ;;; Copyright © 2020 Guillaume Le Vaillant <glv@posteo.net>
 ;;; Copyright © 2020, 2021 Léo Le Bouter <lle-bout@zaclys.net>
+;;; Copyright © 2021 Antoine Côté <antoine.cote@posteo.net>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -478,7 +479,7 @@ compressed with pbzip2 can be decompressed with bzip2).")
 (define-public xz
   (package
    (name "xz")
-   (version "5.2.4")
+   (version "5.2.5")
    (source (origin
             (method url-fetch)
             (uri (list (string-append "http://tukaani.org/xz/xz-" version
@@ -487,7 +488,7 @@ compressed with pbzip2 can be decompressed with bzip2).")
                                       version ".tar.gz")))
             (sha256
              (base32
-              "0ibi2zsfaz6l756spjwc5rayf4ckgc9hwmy8qinppcyk4svz64mm"))))
+              "045s9agl3bpv3swlwydhgsqh7791957vmgw2plw8f1rks07r3x7n"))))
    (build-system gnu-build-system)
    (arguments
     `(#:phases
@@ -605,14 +606,14 @@ some compression ratio).")
 (define-public lzip
   (package
     (name "lzip")
-    (version "1.21")
+    (version "1.22")
     (source (origin
              (method url-fetch)
              (uri (string-append "mirror://savannah/lzip/lzip-"
                                  version ".tar.gz"))
              (sha256
               (base32
-               "12qdcw5k1cx77brv9yxi1h4dzwibhfmdpigrj43nfk8nscwm12z4"))))
+               "0j59hx72258334rmkwn57ahr6s69nlrx0a5ip1jw2fbiwr12sd63"))))
     (build-system gnu-build-system)
     (home-page "https://www.nongnu.org/lzip/lzip.html")
     (synopsis "Lossless data compressor based on the LZMA algorithm")
@@ -1432,14 +1433,14 @@ or junctions, and always follows hard links.")
 (define-public zstd
   (package
     (name "zstd")
-    (version "1.4.4")
+    (version "1.4.8")
     (source
      (origin
        (method url-fetch)
        (uri (string-append "https://github.com/facebook/zstd/releases/download/"
                            "v" version "/zstd-" version ".tar.gz"))
        (sha256
-        (base32 "05ckxap00qvc0j51d3ci38150cxsw82w7s9zgd5fgzspnzmp1vsr"))))
+        (base32 "094zqsj92iwz8glpgxjw96c43ib7adpjg5nm1082200mrabq4irj"))))
     (build-system gnu-build-system)
     (outputs '("out"                    ;1.2MiB executables and documentation
                "lib"                    ;1.2MiB shared library and headers
@@ -1447,6 +1448,13 @@ or junctions, and always follows hard links.")
     (arguments
      `(#:phases
        (modify-phases %standard-phases
+         (add-after 'unpack 'remove-bogus-check
+           (lambda _
+             ;; lib/Makefile falsely claims that no .pc file can be created.
+             (substitute* "lib/Makefile"
+               (("error configured .*dir ")
+                "true "))
+             #t))
          (delete 'configure)            ;no configure script
          (add-after 'install 'adjust-library-locations
            (lambda* (#:key outputs #:allow-other-keys)
@@ -1466,17 +1474,16 @@ or junctions, and always follows hard links.")
                ;; Make sure the pkg-config file refers to the right output.
                (substitute* (string-append shared-libs "/pkgconfig/libzstd.pc")
                  (("^prefix=.*")
-                  (string-append "prefix=" lib "\n")))
-
-               #t))))
+                  ;; Note: The .pc file expects a trailing slash for 'prefix'.
+                  (string-append "prefix=" lib "/\n")))))))
        #:make-flags
-       ;; TODO: Integrate in next rebuild cycle.
-       (list ,(if (%current-target-system)
-                (string-append "CC=" (cc-for-target))
-                "CC=gcc")
-             (string-append "PREFIX=" (assoc-ref %outputs "out"))
-             (string-append "LIBDIR=" (assoc-ref %outputs "lib") "/lib")
-             (string-append "INCLUDEDIR=" (assoc-ref %outputs "lib") "/include")
+       (list ,(string-append "CC=" (cc-for-target))
+             (string-append "prefix=" (assoc-ref %outputs "out"))
+             (string-append "libdir=" (assoc-ref %outputs "lib") "/lib")
+             (string-append "includedir=" (assoc-ref %outputs "lib") "/include")
+             ;; Auto-detection is over-engineered and buggy.
+             "PCLIBDIR=lib"
+             "PCINCDIR=include"
              ;; Skip auto-detection of, and creating a dependency on, the build
              ;; environment's ‘xz’ for what amounts to a dubious feature anyway.
              "HAVE_LZMA=0"
@@ -1701,37 +1708,22 @@ timestamps in the file header with a fixed time (1 January 2008).
 (define-public zziplib
   (package
     (name "zziplib")
-    (version "0.13.69")
+    (version "0.13.72")
     (home-page "https://github.com/gdraheim/zziplib")
     (source (origin
               (method git-fetch)
               (uri (git-reference (url home-page)
                                   (commit (string-append "v" version))))
               (file-name (git-file-name name version))
-              (patches (search-patches "zziplib-CVE-2018-16548.patch"))
               (sha256
                (base32
-                "0fbk9k7ryas2wh2ykwkvm1pbi40i88rfvc3dydh9xyd7w2jcki92"))))
-    (build-system gnu-build-system)
-    (arguments
-     `(#:phases (modify-phases %standard-phases
-                  (add-before 'check 'make-files-writable
-                    (lambda _
-                      (for-each make-file-writable
-                                (find-files "test" #:directories? #t))
-                      #t)))
-
-       ;; XXX: The default test target attempts to download external resources and
-       ;; fails without error: <https://github.com/gdraheim/zziplib/issues/53>.
-       ;; To prevent confusing log messages, just run a simple zip test that works.
-       #:test-target "check-readme"))
+                "0i6bpa2b13z19alm6ig80364dnin1w28cvif18k6wkkb0w3dzp8y"))))
+    (build-system cmake-build-system)
     (inputs
      `(("zlib" ,zlib)))
     (native-inputs `(("perl" ,perl)     ; for the documentation
                      ("pkg-config" ,pkg-config)
-                     ;; for the documentation; Python 3 not supported,
-                     ;; http://forums.gentoo.org/viewtopic-t-863161-start-0.html
-                     ("python" ,python-2)
+                     ("python" ,python)
                      ("zip" ,zip))) ; to create test files
     (synopsis "Library for accessing zip files")
     (description
@@ -2370,14 +2362,14 @@ to their original, binary CD format.")
 (define-public tarlz
   (package
     (name "tarlz")
-    (version "0.17")
+    (version "0.19")
     (source
      (origin
        (method url-fetch)
        (uri (string-append "mirror://savannah/lzip/tarlz/"
                            "tarlz-" version ".tar.lz"))
        (sha256
-        (base32 "0gpdm6z9pdr5bn31kxg73wm686hhpb5pdf5782pbl5a4xqqhqj90"))))
+        (base32 "09xal55973ivzpaja93jcc1pfla8gb3vrk8dx7pj9qvvz5aynf9n"))))
     (build-system gnu-build-system)
     (native-inputs
      `(("lzip" ,lzip)))

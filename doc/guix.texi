@@ -48,7 +48,7 @@ Copyright @copyright{} 2017 humanitiesNerd@*
 Copyright @copyright{} 2017 Christopher Allan Webber@*
 Copyright @copyright{} 2017, 2018, 2019, 2020 Marius Bakke@*
 Copyright @copyright{} 2017, 2019, 2020 Hartmut Goebel@*
-Copyright @copyright{} 2017, 2019, 2020 Maxim Cournoyer@*
+Copyright @copyright{} 2017, 2019, 2020, 2021 Maxim Cournoyer@*
 Copyright @copyright{} 2017, 2018, 2019, 2020 Tobias Geerinckx-Rice@*
 Copyright @copyright{} 2017 George Clemmer@*
 Copyright @copyright{} 2017 Andy Wingo@*
@@ -920,6 +920,38 @@ the @code{SCM_LOG_DRIVER_FLAGS} makefile variable as in this example:
 @example
 make check TESTS="tests/base64.scm" SCM_LOG_DRIVER_FLAGS="--brief=no"
 @end example
+
+The underlying SRFI 64 custom Automake test driver used for the 'check'
+test suite (located at @file{build-aux/test-driver.scm}) also allows
+selecting which test cases to run at a finer level, via its
+@option{--select} and @option{--exclude} options.  Here's an example, to
+run all the test cases from the @file{tests/packages.scm} test file
+whose names start with ``transaction-upgrade-entry'':
+
+@example
+export SCM_LOG_DRIVER_FLAGS="--select=^transaction-upgrade-entry"
+make check TESTS="tests/packages.scm"
+@end example
+
+Those wishing to inspect the results of failed tests directly from the
+command line can add the @option{--errors-only=yes} option to the
+@code{SCM_LOG_DRIVER_FLAGS} makefile variable and set the @code{VERBOSE}
+Automake makefile variable, as in:
+
+@example
+make check SCM_LOG_DRIVER_FLAGS="--brief=no --errors-only=yes" VERBOSE=1
+@end example
+
+The @option{--show-duration=yes} option can be used to print the
+duration of the individual test cases, when used in combination with
+@option{--brief=no}:
+
+@example
+make check SCM_LOG_DRIVER_FLAGS="--brief=no --show-duration=yes"
+@end example
+
+@xref{Parallel Test Harness,,,automake,GNU Automake} for more
+information about the Automake Parallel Test Harness.
 
 Upon failure, please email @email{bug-guix@@gnu.org} and attach the
 @file{test-suite.log} file.  Please specify the Guix version being used
@@ -2740,8 +2772,8 @@ you should add them to @file{~/.bash_profile} (or equivalent file if you
 do not use Bash) so that environment variables are set next time you
 spawn a shell.  You only need to do this once and other search paths
 environment variables will be taken care of similarly---e.g., if you
-eventually install @code{python} and Python libraries, @code{PYTHONPATH}
-will be defined.
+eventually install @code{python} and Python libraries,
+@env{GUIX_PYTHONPATH} will be defined.
 
 You can go on installing packages at your will.  To list installed
 packages, run:
@@ -3270,6 +3302,9 @@ objects, like this:
  '("emacs" "guile@@2.2" "guile@@2.2:debug"))
 @end lisp
 
+@xref{export-manifest, @option{--export-manifest}}, to learn how to
+obtain a manifest file from an existing profile.
+
 @item --roll-back
 @cindex rolling back
 @cindex undoing transactions
@@ -3477,23 +3512,25 @@ Show details about @var{package}, taken from the list of available packages, in
 recutils manual}).
 
 @example
-$ guix package --show=python | recsel -p name,version
-name: python
-version: 2.7.6
+$ guix package --show=guile | recsel -p name,version
+name: guile
+version: 3.0.5
 
-name: python
-version: 3.3.5
+name: guile
+version: 3.0.2
+
+name: guile
+version: 2.2.7
+@dots{}
 @end example
 
 You may also specify the full name of a package to only get details about a
 specific version of it (this time using the @command{guix show} alias):
 @example
-$ guix show python@@3.4 | recsel -p name,version
-name: python
-version: 3.4.3
+$ guix show guile@@3.0.5 | recsel -p name,version
+name: guile
+version: 3.0.5
 @end example
-
-
 
 @item --list-installed[=@var{regexp}]
 @itemx -I [@var{regexp}]
@@ -3572,6 +3609,48 @@ zeroth generation is never deleted.
 Note that deleting generations prevents rolling back to them.
 Consequently, this command must be used with care.
 
+@cindex manifest, exporting
+@anchor{export-manifest}
+@item --export-manifest
+Write to standard output a manifest suitable for @option{--manifest}
+corresponding to the chosen profile(s).
+
+This option is meant to help you migrate from the ``imperative''
+operating mode---running @command{guix install}, @command{guix upgrade},
+etc.---to the declarative mode that @option{--manifest} offers.
+
+Be aware that the resulting manifest @emph{approximates} what your
+profile actually contains; for instance, depending on how your profile
+was created, it can refer to packages or package versions that are not
+exactly what you specified.
+
+Keep in mind that a manifest is purely symbolic: it only contains
+package names and possibly versions, and their meaning varies over time.
+If you wish to ``pin'' channels to the revisions that were used to build
+the profile(s), see @option{--export-channels} below.
+
+@cindex pinning, channel revisions of a profile
+@item --export-channels
+Write to standard output the list of channels used by the chosen
+profile(s), in a format suitable for @command{guix pull --channels} or
+@command{guix time-machine --channels} (@pxref{Channels}).
+
+Together with @option{--export-manifest}, this option provides
+information allowing you to replicate the current profile
+(@pxref{Replicating Guix}).
+
+However, note that the output of this command @emph{approximates} what
+was actually used to build this profile.  In particular, a single
+profile might have been built from several different revisions of the
+same channel.  In that case, @option{--export-manifest} chooses the last
+one and writes the list of other revisions in a comment.  If you really
+need to pick packages from different channel revisions, you can use
+inferiors in your manifest to do so (@pxref{Inferiors}).
+
+Together with @option{--export-manifest}, this is a good starting point
+if you are willing to migrate from the ``imperative'' model to the fully
+declarative model consisting of a manifest file along with a channels
+file pinning the exact channel revision(s) you want.
 @end table
 
 Finally, since @command{guix package} may actually start build
@@ -5521,11 +5600,11 @@ guix environment guile -- make -j4
 
 In other situations, it is more convenient to specify the list of
 packages needed in the environment.  For example, the following command
-runs @command{python} from an environment containing Python@tie{}2.7 and
+runs @command{python} from an environment containing Python@tie{}3 and
 NumPy:
 
 @example
-guix environment --ad-hoc python2-numpy python-2.7 -- python
+guix environment --ad-hoc python-numpy python -- python3
 @end example
 
 Furthermore, one might want the dependencies of a package and also some
@@ -7768,8 +7847,9 @@ packages, which consists in running @code{python setup.py build} and
 then @code{python setup.py install --prefix=/gnu/store/@dots{}}.
 
 For packages that install stand-alone Python programs under @code{bin/},
-it takes care of wrapping these programs so that their @env{PYTHONPATH}
-environment variable points to all the Python libraries they depend on.
+it takes care of wrapping these programs so that their
+@env{GUIX_PYTHONPATH} environment variable points to all the Python
+libraries they depend on.
 
 Which Python package is used to perform the build can be specified with
 the @code{#:python} parameter.  This is a useful way to force a package
@@ -7781,6 +7861,13 @@ By default guix calls @code{setup.py} under control of
 @code{setuptools}, much like @command{pip} does.  Some packages are not
 compatible with setuptools (and pip), thus you can disable this by
 setting the @code{#:use-setuptools?} parameter to @code{#f}.
+
+If a @code{"python"} output is available, the package is installed into it
+instead of the default @code{"out"} output. This is useful for packages that
+include a Python package as only a part of the software, and thus want to
+combine the phases of @code{python-build-system} with another build system.
+Python bindings are a common usecase.
+
 @end defvr
 
 @defvr {Scheme Variable} perl-build-system
@@ -7801,6 +7888,19 @@ passes flags specified by the @code{#:make-maker-flags} or
 @code{#:module-build-flags} parameter, respectively.
 
 Which Perl package is used can be specified with @code{#:perl}.
+@end defvr
+
+@defvr {Scheme Variable} renpy-build-system
+This variable is exported by @code{(guix build-system renpy)}.  It implements
+the more or less standard build procedure used by Ren'py games, which consists
+of loading @code{#:game} once, thereby creating bytecode for it.
+
+It further creates a wrapper script in @code{bin/} and a desktop entry in
+@code{share/applications}, both of which can be used to launch the game.
+
+Which Ren'py package is used can be specified with @code{#:renpy}.
+Games can also be installed in outputs other than ``out'' by using
+@code{#:output}.
 @end defvr
 
 @defvr {Scheme Variable} qt-build-system
@@ -7988,9 +8088,7 @@ implements the build procedure for packages that use
 
 It adds both Meson and @uref{https://ninja-build.org/, Ninja} to the set
 of inputs, and they can be changed with the parameters @code{#:meson}
-and @code{#:ninja} if needed.  The default Meson is
-@code{meson-for-build}, which is special because it doesn't clear the
-@code{RUNPATH} of binaries and libraries when they are installed.
+and @code{#:ninja} if needed.
 
 This build system is an extension of @code{gnu-build-system}, but with the
 following phases changed to some specific for Meson:
@@ -8021,11 +8119,11 @@ Apart from that, the build system also adds the following phases:
 
 @item fix-runpath
 This phase ensures that all binaries can find the libraries they need.
-It searches for required libraries in subdirectories of the package being
-built, and adds those to @code{RUNPATH} where needed.  It also removes
-references to libraries left over from the build phase by
-@code{meson-for-build}, such as test dependencies, that aren't actually
-required for the program to run.
+It searches for required libraries in subdirectories of the package
+being built, and adds those to @code{RUNPATH} where needed.  It also
+removes references to libraries left over from the build phase by
+@code{meson}, such as test dependencies, that aren't actually required
+for the program to run.
 
 @item glib-or-gtk-wrap
 This phase is the phase provided by @code{glib-or-gtk-build-system}, and it
@@ -8366,12 +8464,14 @@ Make @var{file} writable for its owner.
 @end deffn
 
 @deffn {Scheme Procedure} copy-recursively @var{source} @var{destination} @
-  [#:log (current-output-port)] [#:follow-symlinks? #f] [#:keep-mtime? #f]
+  [#:log (current-output-port)] [#:follow-symlinks? #f] @
+  [#:copy-file copy-file] [#:keep-mtime? #f] [#:keep-permissions? #t]
 Copy @var{source} directory to @var{destination}.  Follow symlinks if
-@var{follow-symlinks?}  is true; otherwise, just preserve them.  When
-@var{keep-mtime?} is true, keep the modification time of the files in
-@var{source} on those of @var{destination}.  Write verbose output to the
-@var{log} port.
+@var{follow-symlinks?}  is true; otherwise, just preserve them.  Call
+@var{copy-file} to copy regular files.  When @var{keep-mtime?} is true,
+keep the modification time of the files in @var{source} on those of
+@var{destination}.  When @var{keep-permissions?} is true, preserve file
+permissions.  Write verbose output to the @var{log} port.
 @end deffn
 
 @deffn {Scheme Procedure} delete-file-recursively @var{dir} @
@@ -19462,7 +19562,7 @@ configuration.
 @item @code{ident-file} (default: @code{%default-postgres-ident})
 Filename or G-expression for the user name mapping configuration.
 
-@item @code{socket-directory} (default: @code{"/var/lib/postgresql"})
+@item @code{socket-directory} (default: @code{"/var/run/postgresql"})
 Specifies the directory of the Unix-domain socket(s) on which PostgreSQL
 is to listen for connections from client applications.  If set to
 @code{#false} PostgreSQL does not listen on any Unix-domain sockets, in
@@ -32826,6 +32926,25 @@ mechanism instead (@pxref{Shepherd Services}).
 @end table
 @end deftp
 
+The following example specifies the Shepherd package for the operating
+system:
+
+@lisp
+(operating-system
+  ;; ...
+  (services (append (list openssh-service-type))
+            ;; ...
+            %desktop-services)
+  ;; ...
+  ;; Use own Shepherd package.
+  (essential-services
+   (modify-services (operating-system-default-essential-services
+                     this-operating-system)
+     (shepherd-root-service-type config => (shepherd-configuration
+                                            (inherit config)
+                                            (shepherd my-shepherd))))))
+@end lisp
+
 @defvr {Scheme Variable} %shepherd-root-service
 This service represents PID@tie{}1.
 @end defvr
@@ -32955,6 +33074,20 @@ GDB}):
 
 From there on, GDB will pick up debugging information from the
 @file{.debug} files under @file{~/.guix-profile/lib/debug}.
+
+Below is an alternative GDB script which is useful when working with
+other profiles.  It takes advantage of the optional Guile integration in
+GDB.  This snippet is included by default on Guix System in the
+@file{~/.gdbinit} file.
+
+@example
+guile
+(use-modules (gdb))
+(execute (string-append "set debug-file-directory "
+                        (or (getenv "GDB_DEBUG_FILE_DIRECTORY")
+                            "~/.guix-profile/lib/debug")))
+end
+@end example
 
 In addition, you will most likely want GDB to be able to show the source
 code being debugged.  To do that, you will have to unpack the source

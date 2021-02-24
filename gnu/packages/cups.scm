@@ -7,6 +7,7 @@
 ;;; Copyright © 2017 Mark H Weaver <mhw@netris.org>
 ;;; Copyright © 2017–2020 Tobias Geerinckx-Rice <me@tobias.gr>
 ;;; Copyright © 2020 Marius Bakke <mbakke@fastmail.com>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -128,7 +129,7 @@ driver is known to work with these printers:
 (define-public cups-filters
   (package
     (name "cups-filters")
-    (version "1.27.4")
+    (version "1.28.5")
     (source(origin
               (method url-fetch)
               (uri
@@ -136,7 +137,7 @@ driver is known to work with these printers:
                               "cups-filters-" version ".tar.xz"))
               (sha256
                (base32
-                "110b1xhb5vfpcx0zq9kkas7pj281skx5dpnnr22idx509jfdzj8b"))
+                "03zn534whjxi3s7g0srdib1qhvwk0f826c5bci17jl5zpk3myhm8"))
               (modules '((guix build utils)))
               (snippet
                ;; install backends, banners and filters to cups-filters output
@@ -196,17 +197,18 @@ driver is known to work with these printers:
                         #t)))
                   (add-after 'install 'wrap-filters
                     (lambda* (#:key inputs outputs #:allow-other-keys)
-                      ;; Some filters expect to find 'gs' in $PATH.  We cannot
-                      ;; just hard-code its absolute file name in the source
+                      ;; Some filters expect to find things in $PATH.  We cannot
+                      ;; just hard-code all absolute file names in the source
                       ;; because foomatic-rip, for example, has tests like
                       ;; 'startswith(cmd, "gs")'.
                       (let ((out         (assoc-ref outputs "out"))
-                            (ghostscript (assoc-ref inputs "ghostscript")))
+                            (ghostscript (assoc-ref inputs "ghostscript"))
+                            (grep        (assoc-ref inputs "grep")))
                         (for-each (lambda (file)
                                     (wrap-program file
                                       `("PATH" ":" prefix
-                                        (,(string-append ghostscript
-                                                         "/bin")))))
+                                        (,(string-append ghostscript "/bin:"
+                                                         grep "/bin")))))
                                   (find-files (string-append
                                                out "/lib/cups/filter")))
                         #t))))))
@@ -219,6 +221,7 @@ driver is known to work with these printers:
        ("freetype"     ,freetype)
        ("font-dejavu"  ,font-dejavu) ; also needed by test suite
        ("ghostscript"  ,ghostscript/cups)
+       ("grep"         ,grep)
        ("ijs"          ,ijs)
        ("dbus"         ,dbus)
        ("lcms"         ,lcms)
@@ -511,8 +514,7 @@ should only be used as part of the Guix cups-pk-helper service.")
                     (("^dat2drvdir =.*")
                      "dat2drvdir = $(pkglibexecdir)\n")
                     (("^locatedriverdir =.*")
-                     "locatedriverdir = $(pkglibexecdir)\n"))
-                  #t))))
+                     "locatedriverdir = $(pkglibexecdir)\n"))))))
     (build-system gnu-build-system)
     (outputs (list "out" "ppd"))
     (home-page "https://developers.hp.com/hp-linux-imaging-and-printing")
@@ -600,8 +602,7 @@ should only be used as part of the Guix cups-pk-helper service.")
                   (string-append "rulessystemdir = " out
                                  "/lib/systemd/system"))
                  (("/etc/sane.d")
-                  (string-append out "/etc/sane.d")))
-               #t)))
+                  (string-append out "/etc/sane.d"))))))
          (add-before 'configure 'fix-build-with-python-3.8
            (lambda* (#:key inputs #:allow-other-keys)
              (let ((python (assoc-ref inputs "python")))
@@ -612,15 +613,13 @@ should only be used as part of the Guix cups-pk-helper service.")
                  (setenv "C_INCLUDE_PATH"
                          (string-append python "/include/python"
                                         (python:python-version python)
-                                        ":" (getenv "C_INCLUDE_PATH"))))
-               #t)))
+                                        ":" (getenv "C_INCLUDE_PATH")))))))
          (add-after 'install 'install-models-dat
            (lambda* (#:key outputs #:allow-other-keys)
              (let* ((out (assoc-ref outputs "out"))
                     (models-dir (string-append out
                                                "/share/hplip/data/models")))
-               (install-file "data/models/models.dat" models-dir))
-             #t))
+               (install-file "data/models/models.dat" models-dir))))
          (add-after 'install 'wrap-binaries
            ;; Scripts in /bin are all symlinks to .py files in /share/hplip.
            ;; Symlinks are immune to the Python build system's 'WRAP phase,
@@ -631,7 +630,7 @@ should only be used as part of the Guix cups-pk-helper service.")
            (lambda* (#:key inputs outputs #:allow-other-keys)
              (let* ((out (assoc-ref outputs "out"))
                     (bin (string-append out "/bin"))
-                    (python (assoc-ref inputs "python")))
+                    (site (python:site-packages inputs outputs)))
                (with-directory-excursion bin
                  (for-each (lambda (file)
                              (let ((target (readlink file)))
@@ -640,19 +639,15 @@ should only be used as part of the Guix cups-pk-helper service.")
                                  (lambda _
                                    (format #t
                                            "#!~a~@
-                                           export PYTHONPATH=\"~a:~a\"~@
+                                           export GUIX_PYTHONPATH=\"~a:~a\"~@
                                            exec -a \"$0\" \"~a/~a\" \"$@\"~%"
                                            (which "bash")
-                                           (string-append
-                                            out "/lib/python"
-                                            (python:python-version python)
-                                            "/site-packages")
-                                           (getenv "PYTHONPATH")
+                                           site
+                                           (getenv "GUIX_PYTHONPATH")
                                            bin target)))
                                (chmod file #o755)))
                   (find-files "." (lambda (file stat)
-                                    (eq? 'symlink (stat:type stat)))))
-                 #t)))))))
+                                    (eq? 'symlink (stat:type stat))))))))))))
 
     ;; Note that the error messages printed by the tools in the case of
     ;; missing dependencies are often downright misleading.

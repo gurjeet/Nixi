@@ -81,7 +81,7 @@
 (define-public libgpg-error
   (package
     (name "libgpg-error")
-    (version "1.37")
+    (version "1.39")
     (source
      (origin
       (method url-fetch)
@@ -89,7 +89,7 @@
                           version ".tar.bz2"))
       (sha256
        (base32
-        "0qwpx8mbc2l421a22l0l1hpzkip9jng06bbzgxwpkkvk5bvnybdk"))))
+        "13r9vf6dyjab6jh2821fp2r6m624iy838j2s3kpr882rmvf6x0sa"))))
     (build-system gnu-build-system)
     (arguments
      (if (%current-target-system)
@@ -131,14 +131,14 @@ Daemon and possibly more in the future.")
 (define-public libgcrypt
   (package
     (name "libgcrypt")
-    (version "1.8.5")
+    (version "1.8.7")
     (source (origin
              (method url-fetch)
              (uri (string-append "mirror://gnupg/libgcrypt/libgcrypt-"
                                  version ".tar.bz2"))
              (sha256
               (base32
-                "1hvsazms1bfd769q0ngl0r9g5i4m9mpz9jmvvrdzyzk3rfa2ljiv"))))
+               "0j27jxhjay78by940d64778nxwbysxynv5mq6iq1nmlrh810zdq3"))))
     (build-system gnu-build-system)
     (propagated-inputs
      `(("libgpg-error-host" ,libgpg-error)))
@@ -257,7 +257,7 @@ compatible to GNU Pth.")
 (define-public gnupg
   (package
     (name "gnupg")
-    (version "2.2.25")
+    (version "2.2.27")
     (source (origin
               (method url-fetch)
               (uri (string-append "mirror://gnupg/gnupg/gnupg-" version
@@ -265,7 +265,7 @@ compatible to GNU Pth.")
               (patches (search-patches "gnupg-default-pinentry.patch"))
               (sha256
                (base32
-                "02n3klqbyzxyil13sg4wa0pcwr7vs7zjaslis926yjxg8yr0fly5"))))
+                "1693s2rp9sjwvdslj94n03wnb6rxysjy0dli0q1698af044h1ril"))))
     (build-system gnu-build-system)
     (native-inputs
      `(("pkg-config" ,pkg-config)))
@@ -894,7 +894,7 @@ passphrase when @code{gpg} is run and needs it.")))
 (define-public pinentry-rofi
   (package
     (name "pinentry-rofi")
-    (version "2.0.2")
+    (version "2.0.3")
     (source (origin
               (method git-fetch)
               (uri (git-reference
@@ -902,7 +902,7 @@ passphrase when @code{gpg} is run and needs it.")))
                     (commit version)))
               (file-name (git-file-name name version))
               (sha256
-               (base32 "14rbz32ykc8pz7gglbvxm3pcgabr7xdnddar6k24icd5xk9mr4rp"))))
+               (base32 "0kjzvgni9srl8h5c52pqrvgdxs6avv0nhgk19apd97sx10qdwdhk"))))
     (build-system gnu-build-system)
     (arguments
      `(#:modules
@@ -923,9 +923,13 @@ passphrase when @code{gpg} is run and needs it.")))
                   (wrap-program
                       (string-append bin "pinentry-rofi")
                     (list "PATH" ":" 'prefix `(,rofi-bin)))
-                  #t))))))))
+                  #t)))))
+         (add-after 'compress-documentation 'installcheck
+           (lambda* rest
+             (invoke "make" "installcheck"))))))
     (native-inputs
      `(("autoconf" ,autoconf)
+       ("autoconf-archive" ,autoconf-archive)
        ("automake" ,automake)
        ("pkg-config" ,pkg-config)
        ("texinfo" ,texinfo)))

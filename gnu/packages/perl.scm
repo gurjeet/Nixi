@@ -6,14 +6,14 @@
 ;;; Copyright © 2015 Eric Dvorsak <eric@dvorsak.fr>
 ;;; Copyright © 2016, 2018 Mark H Weaver <mhw@netris.org>
 ;;; Copyright © 2016 Jochem Raat <jchmrt@riseup.net>
-;;; Copyright © 2016, 2017, 2018, 2019, 2020 Efraim Flashner <efraim@flashner.co.il>
+;;; Copyright © 2016, 2017, 2018, 2019, 2020, 2021 Efraim Flashner <efraim@flashner.co.il>
 ;;; Copyright © 2016 Nikita <nikita@n0.is>
 ;;; Copyright © 2016 Alex Sassmannshausen <alex@pompo.co>
 ;;; Copyright © 2016, 2018, 2020 Roel Janssen <roel@gnu.org>
 ;;; Copyright © 2016 Ben Woodcroft <donttrustben@gmail.com>
 ;;; Copyright © 2016, 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
 ;;; Copyright © 2017 Raoul J.P. Bonnal <ilpuccio.febo@gmail.com>
-;;; Copyright © 2017, 2018 Marius Bakke <mbakke@fastmail.com>
+;;; Copyright © 2017, 2018, 2020 Marius Bakke <marius@gnu.org>
 ;;; Copyright © 2017 Adriano Peluso <catonano@gmail.com>
 ;;; Copyright © 2017, 2018, 2019, 2020 Tobias Geerinckx-Rice <me@tobias.gr>
 ;;; Copyright © 2017 Leo Famulari <leo@famulari.name>
@@ -88,18 +88,17 @@
   ;; Yeah, Perl...  It is required early in the bootstrap process by Linux.
   (package
     (name "perl")
-    (version "5.30.2")
+    (version "5.32.0")
     (source (origin
              (method url-fetch)
              (uri (string-append "mirror://cpan/src/5.0/perl-"
                                  version ".tar.gz"))
              (sha256
               (base32
-               "128nfdxcvxfn5kq55qcfrx2851ys8hv794dcdxbyny8rm7w7vnv6"))
+               "1d6001cjnpxfv79000bx00vmv2nvdz7wrnyas451j908y7hirszg"))
              (patches (search-patches
                        "perl-no-sys-dirs.patch"
                        "perl-autosplit-default-time.patch"
-                       "perl-deterministic-ordering.patch"
                        "perl-reproducible-build-date.patch"))))
     (build-system gnu-build-system)
     (arguments
@@ -4968,6 +4967,25 @@ vaguely inspired by John Ousterhout's Tk_ParseArgv.")
     (home-page "https://metacpan.org/release/Getopt-Tabular")
     (license (package-license perl))))
 
+(define-public perl-gettext
+  (package
+    (name "perl-gettext")
+    (version "1.07")
+    (source (origin
+              (method url-fetch)
+              (uri (string-append "mirror://cpan/authors/id/P/PV/PVANDRY"
+                                  "/gettext-" version ".tar.gz"))
+              (sha256
+               (base32
+                "05cwqjxxary11di03gg3fm6j9lbvg1dr2wpr311c1rwp8salg7ch"))))
+    (build-system perl-build-system)
+    (home-page "https://metacpan.org/release/gettext")
+    (synopsis "Perl bindings for POSIX i18n gettext functions")
+    (description
+     "Locale::gettext provides an object oriented interface to the
+internationalization functions provided by the C library.")
+    (license license:perl-license)))
+
 (define-public perl-graph
   (package
     (name "perl-graph")
@@ -8394,12 +8412,38 @@ available.")
          "01xifj83dv492lxixijmg6va02rf3ydlxly0a9slmx22r6qa1drh"))))
     (build-system perl-build-system)
     (propagated-inputs
-     `(("perl-devel-symdump" ,perl-devel-symdump)))
+     `(("perl-devel-symdump" ,perl-devel-symdump)
+       ("perl-pod-parser" ,perl-pod-parser)))
     (home-page "https://metacpan.org/release/Pod-Coverage")
     (synopsis "Check for comprehensive documentation of a module")
     (description "This module provides a mechanism for determining if the pod
 for a given module is comprehensive.")
     (license (package-license perl))))
+
+(define-public perl-pod-parser
+  (package
+    (name "perl-pod-parser")
+    (version "1.63")
+    (source (origin
+              (method url-fetch)
+              (uri (string-append
+                    "mirror://cpan/authors/id/M/MA/MAREKR/Pod-Parser-"
+                    version ".tar.gz"))
+              (sha256
+               (base32
+                "1k8clxxdjag56zm6cv38c3q81gj7xphfhh98l21jynwp55hvbq6v"))))
+    (build-system perl-build-system)
+    (home-page "https://metacpan.org/release/Pod-Parser")
+    (synopsis "Modules for parsing/translating POD format documents")
+    (description
+     "@code{Pod::Parser} is a base class for creating POD filters and
+translators.  It handles most of the effort involved with parsing the POD
+sections from an input stream, leaving subclasses free to be concerned only
+with performing the actual translation of text.
+
+@emph{NOTE}: This module is considered legacy.  New projects should prefer
+@code{Pod::Simple} instead.")
+    (license license:perl-license)))
 
 (define-public perl-pod-simple
   (package
@@ -10330,7 +10374,7 @@ duration strings like \"2 minutes\" and \"3 seconds\" to seconds.")
 (define-public perl-time-local
   (package
     (name "perl-time-local")
-    (version "1.28")
+    (version "1.30")
     (source
      (origin
        (method url-fetch)
@@ -10338,7 +10382,7 @@ duration strings like \"2 minutes\" and \"3 seconds\" to seconds.")
                            "Time-Local-" version ".tar.gz"))
        (sha256
         (base32
-         "03p1mxk75vmmi4l0ibpd05b6hncbh8afjhvss87vpp4rrkjvjy4j"))))
+         "1jr0i57jqm0spdd98gp5mzdnrqdyf7rls0ygwb9ldfc655mlyx67"))))
     (build-system perl-build-system)
     (home-page "https://metacpan.org/release/Time-Local")
     (synopsis "Efficiently compute time from local and GMT time")
@@ -10797,7 +10841,7 @@ having to write a single line of XS.")
 (define-public perl-xml-writer
   (package
     (name "perl-xml-writer")
-    (version "0.625")
+    (version "0.900")
     (source
      (origin
        (method url-fetch)
@@ -10807,7 +10851,7 @@ having to write a single line of XS.")
              ".tar.gz"))
        (sha256
         (base32
-         "1gjzs570i67ywbv967g8ylb5sg59clwmyrl2yix3jl70dhn55070"))))
+         "07qd806kcs7si7qakx3x5p68xq2jdmkxdrns987kaayg7syzbj3k"))))
     (build-system perl-build-system)
     (home-page "https://metacpan.org/release/XML-Writer")
     (synopsis "Easily generate well-formed, namespace-aware XML")
@@ -10869,7 +10913,7 @@ on the YAML 1.0 specification.")
 (define-public perl-yaml-libyaml
   (package
     (name "perl-yaml-libyaml")
-    (version "0.80")
+    (version "0.82")
     (source
      (origin
        (method url-fetch)
@@ -10877,7 +10921,7 @@ on the YAML 1.0 specification.")
              "mirror://cpan/authors/id/T/TI/TINITA/YAML-LibYAML-"
              version ".tar.gz"))
        (sha256
-        (base32 "1nhn4w52kpq757rxl052f61h36rdzsy416k740m3fy5ih7axhq4x"))))
+        (base32 "0j7yhxkaasccynl5iq1cqpf4x253p4bi5wsq6qbwwv2wjsiwgd02"))))
     (build-system perl-build-system)
     (home-page "https://metacpan.org/release/YAML-LibYAML")
     (synopsis "Perl YAML Serialization using XS and libyaml")
@@ -11036,7 +11080,7 @@ MYMETA.yml.")
 (define-public perl-module-build
   (package
     (name "perl-module-build")
-    (version "0.4229")
+    (version "0.4231")
     (source
      (origin
        (method url-fetch)
@@ -11044,7 +11088,7 @@ MYMETA.yml.")
                            "Module-Build-" version ".tar.gz"))
        (sha256
         (base32
-         "064c03wxia7jz0i578awj4srykj0nnigm4p5r0dv0559rnk93r0z"))))
+         "05xpn8qg814y49vrih16zfr9iiwb7pmdf57ahjnc2h0p5illq3vy"))))
     (build-system perl-build-system)
     (propagated-inputs
      `(("perl-cpan-meta" ,perl-cpan-meta)))

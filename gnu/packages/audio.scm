@@ -2023,9 +2023,9 @@ synchronous execution of all clients, and low latency operation.")
            (lambda* (#:key inputs outputs #:allow-other-keys)
              ;; Make sure 'jack_control' runs with the correct PYTHONPATH.
              (let* ((out (assoc-ref outputs "out"))
-                    (path (getenv "PYTHONPATH")))
+                    (path (getenv "GUIX_PYTHONPATH")))
                (wrap-program (string-append out "/bin/jack_control")
-                 `("PYTHONPATH" ":" prefix (,path))))
+                 `("GUIX_PYTHONPATH" ":" prefix (,path))))
              #t)))))
     (inputs
      `(("alsa-lib" ,alsa-lib)
@@ -4636,7 +4636,7 @@ as is the case with audio plugins.")
            (lambda* (#:key outputs #:allow-other-keys)
              (let ((out (assoc-ref outputs "out")))
                (wrap-script (string-append out "/bin/carla")
-                            `("PYTHONPATH" ":" prefix (,(getenv "PYTHONPATH"))))
+                            `("GUIX_PYTHONPATH" ":" prefix (,(getenv "GUIX_PYTHONPATH"))))
                #t))))))
     (inputs
      `(("alsa-lib" ,alsa-lib)
@@ -4829,11 +4829,13 @@ with the provided metadata and adhere to well-known best practices.")
         (base32
          "07xl3cmdaf7k9mm58m93cn8i1jvgimmiifdw1w7v2jl88nx60pm1"))))
     (build-system meson-build-system)
-    (inputs
-     `(("cairo" ,cairo)
-       ("libx11" ,libx11)))
     (native-inputs
      `(("pkg-config" ,pkg-config)))
+    ;; These are listed as propagated inputs because they are dependencies
+    ;; in pkgconfig.
+    (propagated-inputs
+     `(("cairo" ,cairo)
+       ("libx11" ,libx11)))
     (synopsis "GUI toolkit for LV2 plugins")
     (description "ZToolkit (Ztk) is a cross-platform GUI toolkit heavily
 inspired by GTK.  It handles events and low level drawing on behalf of
@@ -4882,9 +4884,9 @@ edited, converted, compressed and saved.")
     (name "ztoolkit-rsvg")
     (arguments
      `(#:configure-flags `("-Denable_rsvg=true")))
-    (inputs
+    (propagated-inputs
      `(("librsvg" ,librsvg)
-       ,@(package-inputs ztoolkit)))
+       ,@(package-propagated-inputs ztoolkit)))
     (synopsis "ZToolkit with SVG support")))
 
 (define-public lsp-dsp-lib

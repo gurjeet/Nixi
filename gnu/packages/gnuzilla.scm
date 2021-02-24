@@ -929,13 +929,13 @@ from forcing GEXP-PROMISE."
 
        ("patch" ,(canonical-package patch))
 
-       ("rust" ,rust-1.41)
-       ("cargo" ,rust-1.41 "cargo")
+       ("rust" ,rust)
+       ("cargo" ,rust "cargo")
        ("rust-cbindgen" ,rust-cbindgen-0.14)
        ("llvm" ,llvm)
        ("clang" ,clang)
        ("perl" ,perl)
-       ("node" ,node-10.22)
+       ("node" ,node)
        ("python" ,python)
        ("python-2" ,python-2)
        ("python2-pysqlite" ,python2-pysqlite)
@@ -1305,11 +1305,11 @@ standards of the IceCat project.")
        (cpe-version . ,(first (string-split version #\-)))))))
 
 ;; Update this together with icecat!
-(define %icedove-build-id "20210126000000") ;must be of the form YYYYMMDDhhmmss
+(define %icedove-build-id "20210205000000") ;must be of the form YYYYMMDDhhmmss
 (define-public icedove
   (package
     (name "icedove")
-    (version "78.7.0")
+    (version "78.7.1")
     (source icecat-source)
     (properties
      `((cpe-name . "thunderbird_esr")))
@@ -1589,7 +1589,7 @@ standards of the IceCat project.")
         ;; in the Thunderbird release tarball.  We don't use the release
         ;; tarball because it duplicates the Icecat sources and only adds the
         ;; "comm" directory, which is provided by this repository.
-        ,(let ((changeset "d4c4077a3ef9b3221984f2d0b42f1d96c35776e8"))
+        ,(let ((changeset "1ef5b612ee43c806752ca215b142a9733210f3cc"))
            (origin
              (method hg-fetch)
              (uri (hg-reference
@@ -1598,18 +1598,18 @@ standards of the IceCat project.")
              (file-name (string-append "thunderbird-" version "-checkout"))
              (sha256
               (base32
-               "0yabs4zlwb5jvlyk45lbw1nzfmra1f8bbwvwcwxjs1a8wcmrmb39")))))
+               "0kpn6jvymryf2gpj0dl5lpgln8mc3kxi3makms0wb84aajn842jv")))))
        ("autoconf" ,autoconf-2.13)
-       ("cargo" ,rust-1.41 "cargo")
+       ("cargo" ,rust "cargo")
        ("clang" ,clang)
        ("llvm" ,llvm)
        ("nasm" ,nasm)
-       ("node" ,node-10.22)
+       ("node" ,node)
        ("perl" ,perl)
        ("pkg-config" ,pkg-config)
        ("python" ,python)
        ("python2" ,python-2.7)
-       ("rust" ,rust-1.41)
+       ("rust" ,rust)
        ("rust-cbindgen" ,rust-cbindgen-0.14)
        ("which" ,which)
        ("yasm" ,yasm)))

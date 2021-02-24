@@ -619,12 +619,12 @@ everything from small to very large projects with speed and efficiency.")
                    (git (assoc-ref inputs "git")))
                (wrap-program (string-append out "/bin/gl")
                  `("PATH" ":" prefix (,(string-append git "/bin")))
-                 `("PYTHONPATH" ":" =
+                 `("GUIX_PYTHONPATH" ":" =
                    (,(string-append out "/lib/python"
                                     ,(version-major+minor
                                       (package-version python))
                                     "/site-packages:")
-                    ,(getenv "PYTHONPATH"))))
+                    ,(getenv "GUIX_PYTHONPATH"))))
                #t))))))
     (native-inputs
      `(("git-for-tests" ,git-minimal)))
@@ -925,7 +925,7 @@ collaboration using typical untrusted file hosts or services.")
               (lambda (file)
                 (wrap-program (string-append (assoc-ref outputs "out")
                                              "/lib/cgit/filters/" file)
-                  `("PYTHONPATH" ":" prefix (,(getenv "PYTHONPATH")))))
+                  `("GUIX_PYTHONPATH" ":" prefix (,(getenv "GUIX_PYTHONPATH")))))
               '("syntax-highlighting.py"
                 "html-converters/md2html"))
              #t)))))
@@ -1736,14 +1736,14 @@ following features:
 (define-public subversion
   (package
     (name "subversion")
-    (version "1.14.0")
+    (version "1.14.1")
     (source (origin
              (method url-fetch)
              (uri (string-append "mirror://apache/subversion/"
                                  "subversion-" version ".tar.bz2"))
              (sha256
               (base32
-               "00i1f88snlpcnsycpn6r315h6792l5nkr2p5k6kq6yprz4cf5a3b"))))
+               "1ag1hvcm9q92kgalzbbgcsq9clxnzmbj9nciz9lmabjx4lyajp9c"))))
     (build-system gnu-build-system)
     (arguments
      '(#:parallel-tests? #f             ; TODO Seems to cause test failures on
@@ -2394,7 +2394,7 @@ by rclone usable with git-annex.")
 (define-public fossil
   (package
     (name "fossil")
-    (version "2.11")
+    (version "2.14")
     (source
      (origin
        (method url-fetch)
@@ -2402,7 +2402,7 @@ by rclone usable with git-annex.")
               "https://www.fossil-scm.org/index.html/uv/"
               "fossil-src-" version ".tar.gz"))
        (sha256
-        (base32 "0c9nzx42wxfmym9vf1pnbdb1c7gp7a7zqky60izxsph7w2xh8nix"))
+        (base32 "1fazl117ph5z7xg7h6w7i32sf7rsa67499rg2llsxn3d34hckl5q"))
        (modules '((guix build utils)))
        (snippet
         '(begin
@@ -2605,7 +2605,7 @@ directory full of HOWTOs.")
              (lambda* (#:key outputs #:allow-other-keys)
                (wrap-program (string-append (assoc-ref outputs "out")
                                             "/bin/git-when-merged")
-                 `("PYTHONPATH" ":" prefix (,(getenv "PYTHONPATH"))))
+                 `("GUIX_PYTHONPATH" ":" prefix (,(getenv "GUIX_PYTHONPATH"))))
                #t)))))
       (inputs
        `(("git" ,git)
@@ -2650,7 +2650,7 @@ how information about the merge is displayed.")
            (lambda* (#:key outputs #:allow-other-keys)
              (wrap-program (string-append (assoc-ref outputs "out")
                                           "/bin/git-imerge")
-               `("PYTHONPATH" ":" prefix (,(getenv "PYTHONPATH"))))
+               `("GUIX_PYTHONPATH" ":" prefix (,(getenv "GUIX_PYTHONPATH"))))
              #t)))))
     (inputs
      `(("git" ,git)
@@ -2667,7 +2667,7 @@ interrupted, published, and collaborated on while in progress.")
 (define-public git-lfs
   (package
     (name "git-lfs")
-    (version "2.11.0")
+    (version "2.13.2")
     (source (origin
               (method git-fetch)
               (uri (git-reference
@@ -2676,7 +2676,7 @@ interrupted, published, and collaborated on while in progress.")
               (file-name (git-file-name name version))
               (sha256
                (base32
-                "05qd96bn2cl7gn5qarbcv6scdpj28qiwdfzalamqk5jjiidpmng5"))))
+                "0gfpzdya48phwln61746ii78sq55mhzj938lz8x062xkkcsdvbf4"))))
     (build-system go-build-system)
     (arguments
      `(#:import-path "github.com/git-lfs/git-lfs"

@@ -5,6 +5,7 @@
 ;;; Copyright © 2020 Marius Bakke <mbakke@fastmail.com>
 ;;; Copyright © 2020 Vincent Legoll <vincent.legoll@gmail.com>
 ;;; Copyright © 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
+;;; Copyright © 2020, 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -38,20 +39,20 @@
   #:use-module (guix packages)
   #:use-module (guix download)
   #:use-module (guix build-system gnu)
+  #:use-module ((guix build utils) #:select (alist-replace))
   #:use-module (srfi srfi-1))
 
-(define-public gdb-9.2
+(define-public gdb-10
   (package
     (name "gdb")
-    (version "9.2")
+    (version "10.1")
     (source (origin
              (method url-fetch)
              (uri (string-append "mirror://gnu/gdb/gdb-"
                                  version ".tar.xz"))
-             (patches (search-patches "gdb-hurd.patch"))
              (sha256
               (base32
-               "0mf5fn8v937qwnal4ykn3ji1y2sxk0fa1yfqi679hxmpg6pdf31n"))))
+               "1h32dckz1y8fnyxh22iyw8h3hnhxr79v1ng85px3ljn1xv71wbzq"))))
 
     (build-system gnu-build-system)
     (arguments
@@ -97,7 +98,7 @@
        ("gmp" ,gmp)
        ("readline" ,readline)
        ("ncurses" ,ncurses)
-       ("guile" ,guile-2.0)
+       ("guile" ,guile-3.0)
        ("python-wrapper" ,python-wrapper)
        ("source-highlight" ,source-highlight)
 
@@ -118,6 +119,12 @@
                             mig/32-bit
                             mig)))
               '())))
+    ;; TODO: Add support for the GDB_DEBUG_FILE_DIRECTORY environment
+    ;; variable in GDB itself instead of relying on some glue code in
+    ;; the Guix-provided .gdbinit file.
+    (native-search-paths (list (search-path-specification
+                                (variable "GDB_DEBUG_FILE_DIRECTORY")
+                                (files '("lib/debug")))))
     (home-page "https://www.gnu.org/software/gdb/")
     (synopsis "The GNU debugger")
     (description
@@ -129,42 +136,30 @@ written in C, C++, Ada, Objective-C, Pascal and more.")
     (license gpl3+)))
 
 ;; This version of GDB is required by some of the Rust compilers, see
-;; <https://bugs.gnu.org/37810>.
-(define-public gdb-8.2
+;; <https://github.com/rust-lang/rust/issues/79009>.
+(define-public gdb-9.2
   (package
-    (inherit gdb-9.2)
-    (version "8.2.1")
+    (inherit gdb-10)
+    (version "9.2")
     (source (origin
               (method url-fetch)
               (uri (string-append "mirror://gnu/gdb/gdb-"
                                   version ".tar.xz"))
               (sha256
                (base32
-                "00i27xqawjv282a07i73lp1l02n0a3ywzhykma75qg500wll6sha"))))))
+                "0mf5fn8v937qwnal4ykn3ji1y2sxk0fa1yfqi679hxmpg6pdf31n"))))
+    (inputs
+     (alist-replace "guile" (list guile-2.0)
+                    (package-inputs gdb-10)))))
 
 (define-public gdb
   ;; This is the fixed version that packages depend on.  Update it rarely
   ;; enough to avoid massive rebuilds.
-  gdb-9.2)
-
-(define-public gdb-10
-  (package
-    (inherit gdb)
-    (version "10.1")
-    (source (origin
-              (method url-fetch)
-              (uri (string-append "mirror://gnu/gdb/gdb-"
-                                  version ".tar.xz"))
-              (sha256
-               (base32
-                "1h32dckz1y8fnyxh22iyw8h3hnhxr79v1ng85px3ljn1xv71wbzq"))))
-    (inputs
-     `(("guile" ,guile-3.0)
-       ,@(alist-delete "guile" (package-inputs gdb))))))
+  gdb-10)
 
 (define-public gdb-minimal
   (package/inherit
-   gdb-10
+   gdb
    (name "gdb-minimal")
    (inputs (fold alist-delete (package-inputs gdb)
                  '("libxml2" "ncurses" "python-wrapper" "source-highlight")))))

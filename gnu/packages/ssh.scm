@@ -2,7 +2,7 @@
 ;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2013, 2014 Andreas Enge <andreas@enge.fr>
 ;;; Copyright © 2014, 2015, 2016 Mark H Weaver <mhw@netris.org>
-;;; Copyright © 2015, 2016, 2018, 2019 Efraim Flashner <efraim@flashner.co.il>
+;;; Copyright © 2015, 2016, 2018, 2019, 2020, 2021 Efraim Flashner <efraim@flashner.co.il>
 ;;; Copyright © 2016, 2019 Leo Famulari <leo@famulari.name>
 ;;; Copyright © 2016, 2021 Nicolas Goaziou <mail@nicolasgoaziou.fr>
 ;;; Copyright © 2016 Christopher Allan Webber <cwebber@dustycloud.org>
@@ -15,7 +15,7 @@
 ;;; Copyright © 2019, 2020 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
 ;;; Copyright © 2020 Oleg Pykhalov <go.wigust@gmail.com>
-;;; Copyright © 2020 Maxim Cournoyer <maxim.cournoyer@gmail.com>
+;;; Copyright © 2020, 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -44,6 +44,7 @@
   #:use-module (gnu packages gperf)
   #:use-module (gnu packages groff)
   #:use-module (gnu packages guile)
+  #:use-module (gnu packages hurd)
   #:use-module (gnu packages libedit)
   #:use-module (gnu packages linux)
   #:use-module (gnu packages logging)
@@ -165,7 +166,8 @@ applications.")
                    version ".tar.gz"))
             (sha256
              (base32
-              "1zfsz9nldakfz61d2j70pk29zlmj7w2vv46s9l3x2prhcgaqpyym"))))
+              "1zfsz9nldakfz61d2j70pk29zlmj7w2vv46s9l3x2prhcgaqpyym"))
+            (patches (search-patches "libssh2-CVE-2019-17498.patch"))))
    (build-system gnu-build-system)
    ;; The installed libssh2.pc file does not include paths to libgcrypt and
    ;; zlib libraries, so we need to propagate the inputs.
@@ -199,7 +201,9 @@ a server that supports the SSH-2 protocol.")
                     ("pkg-config" ,pkg-config)))
    (inputs `(("libedit" ,libedit)
              ("openssl" ,openssl)
-             ("pam" ,linux-pam)
+             ,@(if (hurd-target?)
+                 '()
+                 `(("pam" ,linux-pam)))
              ("mit-krb5" ,mit-krb5)
              ("zlib" ,zlib)
              ("xauth" ,xauth)))        ; for 'ssh -X' and 'ssh -Y'
@@ -222,7 +226,9 @@ a server that supports the SSH-2 protocol.")
                           "--with-libedit"
 
                           ;; Enable PAM support in sshd.
-                          "--with-pam"
+                          ,,@(if (hurd-target?)
+                               '()
+                               '("--with-pam"))
 
                           ;; "make install" runs "install -s" by default,
                           ;; which doesn't work for cross-compiled binaries
@@ -308,11 +314,11 @@ Additionally, various channel-specific options can be negotiated.")
               (uri (git-reference
                     (url home-page)
                     (commit (string-append "v" version))))
-              (file-name (string-append name "-" version ".tar.gz"))
+              (file-name (git-file-name name version))
               (sha256
                (base32
                 "1xpxkvgj7wgcl450djkcrmrf957mcy2f36hfs5g6kpla1gax2d1g"))
-              (modules '((guix build utils)))))
+              (patches (search-patches "guile-ssh-fix-test-suite.patch"))))
     (build-system gnu-build-system)
     (outputs '("out" "debug"))
     (arguments
@@ -499,13 +505,23 @@ responsive, especially over Wi-Fi, cellular, and long-distance links.")
              "https://matt.ucc.asn.au/dropbear/releases/"
              "dropbear-" version ".tar.bz2"))
        (sha256
-        (base32 "0fy5ma4cfc2pk25mcccc67b2mf1rnb2c06ilb7ddnxbpnc85s8s8"))))
+        (base32 "0fy5ma4cfc2pk25mcccc67b2mf1rnb2c06ilb7ddnxbpnc85s8s8"))
+       (modules '((guix build utils)))
+       (snippet
+        '(begin
+           (delete-file-recursively "libtommath")
+           (delete-file-recursively "libtomcrypt")
+           (substitute* "configure"
+             (("-ltomcrypt") "-ltomcrypt -ltommath"))
+           #t))))
     (build-system gnu-build-system)
-    (arguments `(#:tests? #f))  ; there is no "make check" or anything similar
-    ;; TODO: Investigate unbundling libtommath and libtomcrypt or at least
-    ;; cherry-picking important bug fixes from them. See <bugs.gnu.org/24674>
-    ;; for more information.
-    (inputs `(("zlib" ,zlib)))
+    (arguments
+     `(#:configure-flags '("--disable-bundled-libtom")
+       #:tests? #f))    ; there is no "make check" or anything similar
+    (inputs
+     `(("libtomcrypt" ,libtomcrypt)
+       ("libtommath" ,libtommath)
+       ("zlib" ,zlib)))
     (synopsis "Small SSH server and client")
     (description "Dropbear is a relatively small SSH server and
 client.  It runs on a variety of POSIX-based platforms.  Dropbear is

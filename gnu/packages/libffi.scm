@@ -6,7 +6,7 @@
 ;;; Copyright © 2016, 2017 Ben Woodcroft <donttrustben@gmail.com>
 ;;; Copyright © 2017, 2019, 2020 Marius Bakke <marius@gnu.org>
 ;;; Copyright © 2018 Tobias Geerinckx-Rice <me@tobias.gr>
-;;; Copyright © 2019 Maxim Cournoyer <maxim.cournoyer@gmail.com>
+;;; Copyright © 2019, 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;; Copyright © 2020 John Doe <dftxbs3e@free.fr>
 ;;;
 ;;; This file is part of GNU Guix.
@@ -51,7 +51,8 @@
                               name "-" version ".tar.gz"))
               (sha256
                (base32
-                "0mi0cpf8aa40ljjmzxb7im6dbj45bb0kllcd09xgmp834y9agyvj"))))
+                "0mi0cpf8aa40ljjmzxb7im6dbj45bb0kllcd09xgmp834y9agyvj"))
+              (patches (search-patches "libffi-3.3-powerpc-fixes.patch"))))
     (build-system gnu-build-system)
     (arguments
      `(;; Prevent the build system from passing -march and -mtune to the
@@ -111,13 +112,13 @@ conversions for values passed between the two languages.")
 (define-public python-cffi
   (package
     (name "python-cffi")
-    (version "1.14.0")
+    (version "1.14.4")
     (source
      (origin
       (method url-fetch)
       (uri (pypi-uri "cffi" version))
       (sha256
-       (base32 "1dn279gw5ql8i5n3s5v4rnv96rhhjjfn7xq729qbl5bs2954yf1d"))))
+       (base32 "0v080s7vlrjz9z823x2yh36yc8drwpvvir6w8wfkkzd7k2z5qihs"))))
     (build-system python-build-system)
     (inputs
      `(("libffi" ,libffi)))
@@ -127,20 +128,10 @@ conversions for values passed between the two languages.")
      `(("pkg-config" ,pkg-config)
        ("python-pytest" ,python-pytest)))
     (arguments
-     `(#:modules ((ice-9 ftw)
-                  (srfi srfi-26)
-                  (guix build utils)
-                  (guix build python-build-system))
-       #:phases
+     `(#:phases
        (modify-phases %standard-phases
          (replace 'check
            (lambda _
-             (setenv "PYTHONPATH"
-                     (string-append
-                      (getenv "PYTHONPATH")
-                      ":" (getcwd) "/build/"
-                      (car (scandir "build" (cut string-prefix? "lib." <>)))))
-
              ;; XXX The "normal" approach of setting CC and friends does
              ;; not work here.  Is this the correct way of doing things?
              (substitute* "testing/embedding/test_basic.py"
@@ -151,8 +142,7 @@ conversions for values passed between the two languages.")
                                "linker_so='gcc -shared')")))
              (substitute* "testing/cffi0/test_ownlib.py"
                (("\"cc testownlib") "\"gcc testownlib"))
-             (invoke "py.test" "-v" "c/" "testing/")
-             #t))
+             (invoke "py.test" "-v" "c/" "testing/")))
          (add-before 'check 'patch-paths-of-dynamically-loaded-libraries
            (lambda* (#:key inputs #:allow-other-keys)
              ;; Shared libraries should be referred by their absolute path as
@@ -175,8 +165,7 @@ conversions for values passed between the two languages.")
                   (format #f "lib_m = ['~a']" libm)))
                (substitute* "c/test_c.py"
                  (("find_and_load_library\\(['\"]{1}c['\"]{1}")
-                  (format #f "find_and_load_library('~a'" libc)))
-               #t))))))
+                  (format #f "find_and_load_library('~a'" libc)))))))))
     (home-page "https://cffi.readthedocs.io/")
     (synopsis "Foreign function interface for Python")
     (description "Foreign Function Interface for Python calling C code.")

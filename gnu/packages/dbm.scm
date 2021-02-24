@@ -1,9 +1,10 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2012, 2013, 2014, 2016 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2014, 2016, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2013, 2015 Andreas Enge <andreas@enge.fr>
 ;;; Copyright © 2016, 2017, 2018, 2020 Efraim Flashner <efraim@flashner.co.il>
 ;;; Copyright © 2017, 2018 Marius Bakke <mbakke@fastmail.com>
 ;;; Copyright © 2018 Mark H Weaver <mhw@netris.org>
+;;; Copyright © 2020 Jakub Kądziołka <kuba@kadziolka.net>
 ;;; Copyright © 2021 Leo Le Bouter <lle-bout@zaclys.net>
 ;;;
 ;;; This file is part of GNU Guix.
@@ -46,7 +47,8 @@
                                  version ".tar.gz"))
              (sha256
               (base32
-               "0ampbl2f0hb1nix195kz1syrqqxpmvnvnfvphambj7xjrl3iljg0"))))
+               "0ampbl2f0hb1nix195kz1syrqqxpmvnvnfvphambj7xjrl3iljg0"))
+             (patches (search-patches "bdb-5.3-atomics-on-gcc-9.patch"))))
     (build-system gnu-build-system)
     (outputs '("out"                             ; programs, libraries, headers
                "doc"))                           ; 94 MiB of HTML docs
@@ -114,7 +116,9 @@ SQL, Key/Value, XML/XQuery or Java Object storage for their data model.")
                                   version ".tar.gz"))
               (sha256
                (base32
-                "0a1n5hbl7027fbz5lm0vp0zzfp1hmxnz14wx3zl9563h83br5ag0"))))))
+                "0a1n5hbl7027fbz5lm0vp0zzfp1hmxnz14wx3zl9563h83br5ag0"))
+              (patch-flags '("-p0"))
+              (patches (search-patches "bdb-5.3-atomics-on-gcc-9.patch"))))))
 
 (define-public bdb-6
   (package (inherit bdb-4.8)
@@ -136,14 +140,14 @@ SQL, Key/Value, XML/XQuery or Java Object storage for their data model.")
 (define-public gdbm
   (package
     (name "gdbm")
-    (version "1.18.1")
+    (version "1.19")
     (source (origin
               (method url-fetch)
               (uri (string-append "mirror://gnu/gdbm/gdbm-"
                                   version ".tar.gz"))
               (sha256
                (base32
-                "1p4ibds6z3ccy65lkmd6lm7js0kwifvl53r0fd759fjxgr917rl6"))))
+                "1g342f0xhh8xbc8p9vrr34clhxz57589k50dibhp5f9284hi5v9p"))))
     (arguments `(#:configure-flags '("--enable-libgdbm-compat"
                                      "--disable-static")))
     (build-system gnu-build-system)

@@ -9,6 +9,7 @@
 ;;; Copyright © 2018 Tobias Geerinckx-Rice <me@tobias.gr>
 ;;; Copyright © 2018, 2020 Marius Bakke <mbakke@fastmail.com>
 ;;; Copyright © 2019 Mathieu Othacehe <m.othacehe@gmail.com>
+;;; Copyright © 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -159,7 +160,7 @@ printing, and psresize, for adjusting page sizes.")
 (define-public ghostscript
   (package
     (name "ghostscript")
-    (version "9.52")
+    (version "9.53.3")
     (source
       (origin
         (method url-fetch)
@@ -169,8 +170,9 @@ printing, and psresize, for adjusting page sizes.")
                             "/ghostscript-" version ".tar.xz"))
         (sha256
          (base32
-          "0z1w42y2jmcpl2m1l3z0sfii6zmvzcwcgzn6bydklia6ig7jli2p"))
-        (patches (search-patches "ghostscript-no-header-creationdate.patch"
+          "0d52w9ajv1rz533119ywgmkzkapp74riwny0d21v0zkcbg45p7ww"))
+        (patches (search-patches "ghostscript-freetype-compat.patch"
+                                 "ghostscript-no-header-creationdate.patch"
                                  "ghostscript-no-header-id.patch"
                                  "ghostscript-no-header-uuid.patch"))
         (modules '((guix build utils)))
@@ -266,7 +268,7 @@ printing, and psresize, for adjusting page sizes.")
     (native-inputs
      `(("perl" ,perl)
        ("pkg-config" ,pkg-config)       ;needed for freetype
-       ("python" ,python-wrapper)
+       ("python" ,python-minimal-wrapper)
        ("tcl" ,tcl)
 
        ;; When cross-compiling, some of the natively-built tools require all

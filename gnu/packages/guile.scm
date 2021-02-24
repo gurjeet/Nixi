@@ -1,5 +1,5 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2014 Cyril Roelandt <tipecaml@gmail.com>
 ;;; Copyright © 2014, 2016, 2018 David Thompson <davet@gnu.org>
 ;;; Copyright © 2014, 2017, 2018 Mark H Weaver <mhw@netris.org>
@@ -179,6 +179,11 @@ without requiring the source code to be rewritten.")
 
    (arguments
     `(#:configure-flags '("--disable-static") ; saves 3 MiB
+
+      ;; Work around non-reproducible .go files as described in
+      ;; <https://bugs.gnu.org/20272>, which affects 2.0, 2.2, and 3.0 so far.
+      #:parallel-build? #f
+
       #:phases
       (modify-phases %standard-phases
         ,@(if (hurd-system?)
@@ -245,7 +250,8 @@ without requiring the source code to be rewritten.")
                 "013mydzhfswqci6xmyc1ajzd59pfbdak15i0b090nhr9bzm7dxyd"))
               (modules '((guix build utils)))
               (patches (search-patches
-                        "guile-2.2-skip-oom-test.patch"))
+                        "guile-2.2-skip-oom-test.patch"
+                        "guile-2.2-skip-so-test.patch"))
 
               ;; Remove the pre-built object files.  Instead, build everything
               ;; from source, at the expense of significantly longer build
@@ -284,14 +290,14 @@ without requiring the source code to be rewritten.")
   (package
     (inherit guile-2.2)
     (name "guile")
-    (version "3.0.2")
+    (version "3.0.5")
     (source (origin
               (inherit (package-source guile-2.2))
               (uri (string-append "mirror://gnu/guile/guile-"
                                   version ".tar.xz"))
               (sha256
                (base32
-                "12lziar4j27j9whqp2n18427q45y9ghq7gdd8lqhmj1k0lr7vi2k"))))
+                "1wah6fq1h8vmbpdadjych1mq8hyqkd7p015cbxm14ri37l1gnxid"))))
     (arguments
      ;; XXX: JIT-enabled Guile crashes in obscure ways on GNU/Hurd.
      (if (hurd-target?)
@@ -309,20 +315,8 @@ without requiring the source code to be rewritten.")
                      "share/guile/site/3.0")))))))
 
 (define-public guile-3.0-latest
-  ;; TODO: Make this 'guile-3.0' on the next rebuild cycle.
-  (package-with-extra-patches
-   (package
-     (inherit guile-3.0)
-     (version "3.0.5")
-     (source (origin
-               (inherit (package-source guile-3.0))
-               (uri (string-append "mirror://gnu/guile/guile-"
-                                   version ".tar.xz"))
-               (sha256
-                (base32
-                 "1wah6fq1h8vmbpdadjych1mq8hyqkd7p015cbxm14ri37l1gnxid")))))
-   ;; Remove on the next rebuild cycle.
-   (search-patches "guile-2.2-skip-so-test.patch")))
+  ;; The latest 3.0.x version.
+  guile-3.0)
 
 (define-public guile-next
   (deprecated-package "guile-next" guile-3.0))
@@ -581,14 +575,14 @@ specification.  These are the main features:
   (package
     (inherit guile-json-3)
     (name "guile-json")
-    (version "4.5.1")
+    (version "4.5.2")
     (source (origin
               (method url-fetch)
               (uri (string-append "mirror://savannah/guile-json/guile-json-"
                                   version ".tar.gz"))
               (sha256
                (base32
-                "0iigada80cg7dl10z6ligiykci0cv9b88zmncz47nsz5g9gacdpc"))))))
+                "0cqr0ljqmzlc2bwrapcsmcgxg147h66mcxf23824ri5i6vn4dc0s"))))))
 
 (define-public guile2.2-json
   (package-for-guile-2.2 guile-json-4))

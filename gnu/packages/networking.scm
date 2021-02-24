@@ -621,7 +621,7 @@ systems with no further dependencies.")
                (for-each
                 (lambda (program)
                   (wrap-program program
-                    `("PYTHONPATH" = (,(getenv "PYTHONPATH") ,lib))
+                    `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH") ,lib))
                     `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH")))))
                 (append
                  (map (lambda (prog) (string-append bin prog))
@@ -700,8 +700,16 @@ or, more generally, MAC addresses of the same category of hardware.")
                 "0j9ilig570snbmj48230hf7ms8kvcwi2wblycqrmhh85lksd49ps"))))
     (build-system gnu-build-system)
     (arguments
-     '(#:phases
+     '(#:configure-flags
+       (list "--localstatedir=/var")
+       #:phases
        (modify-phases %standard-phases
+         (add-after 'unpack 'do-not-create-/run
+           (lambda _
+             (substitute* (find-files "src" "Makefile.*")
+               (("^.+install_sh.+/run.+$")
+                "\ttrue"))
+             #t))
          (add-after 'unpack 'patch-iproute2
            (lambda* (#:key inputs #:allow-other-keys)
              (let* ((iproute (assoc-ref inputs "iproute"))
@@ -3562,11 +3570,8 @@ module @code{batman-adv}, for Layer 2.")
            (lambda* (#:key inputs outputs #:allow-other-keys)
              (let* ((out (assoc-ref outputs "out"))
                     (man (string-append out "/share/man")))
-               (invoke "make"
-                       (string-append "PYTHONPATH=" (getenv "PYTHONPATH"))
-                       "doc/pagekite.1")
-               (install-file "doc/pagekite.1" (string-append man "/man1"))
-               #t))))))
+               (invoke "make" "doc/pagekite.1")
+               (install-file "doc/pagekite.1" (string-append man "/man1"))))))))
     (inputs
      `(("python-six" ,python-six)
        ("python-socksipychain" ,python-socksipychain)))

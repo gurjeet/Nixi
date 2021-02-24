@@ -1,5 +1,5 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2013, 2014, 2015, 2019 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2013, 2014, 2015, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2013 Andreas Enge <andreas@enge.fr>
 ;;; Copyright © 2016 Leo Famulari <leo@famulari.name>
 ;;; Copyright © 2017, 2018, 2019 Ricardo Wurmus <rekado@elephly.net>
@@ -7,6 +7,7 @@
 ;;; Copyright © 2019 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2020 Lars-Dominik Braun <ldb@leibniz-psychology.org>
 ;;; Copyright © 2020 Efraim Flashner <efraim@flashner.co.il>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -61,25 +62,23 @@
 (define-public openldap
   (package
    (name "openldap")
-   (replacement openldap-2.4.50)
-   (version "2.4.49")
+   (version "2.4.50")
    (source (origin
-            (method url-fetch)
-
-            ;; See <http://www.openldap.org/software/download/> for a list of
-            ;; mirrors.
-            (uri (list (string-append
-                        "ftp://mirror.switch.ch/mirror/OpenLDAP/"
-                        "openldap-release/openldap-" version ".tgz")
-                       (string-append
-                        "https://www.openldap.org/software/download/OpenLDAP/"
-                        "openldap-release/openldap-" version ".tgz")
-                       (string-append
-                        "ftp://ftp.dti.ad.jp/pub/net/OpenLDAP/"
-                        "openldap-release/openldap-" version ".tgz")))
-            (sha256
-             (base32
-              "0vp524rsngdcykf6ki7vprsyg7gj8z7hszg8xwxz50219fa1gcg3"))))
+             (method url-fetch)
+             ;; See <http://www.openldap.org/software/download/> for a list of
+             ;; mirrors.
+             (uri (list (string-append
+                         "ftp://mirror.switch.ch/mirror/OpenLDAP/"
+                         "openldap-release/openldap-" version ".tgz")
+                        (string-append
+                         "https://www.openldap.org/software/download/OpenLDAP/"
+                         "openldap-release/openldap-" version ".tgz")
+                        (string-append
+                         "ftp://ftp.dti.ad.jp/pub/net/OpenLDAP/"
+                         "openldap-release/openldap-" version ".tgz")))
+             (sha256
+              (base32
+               "1f46nlfwmys110j36sifm7ah8m8f3s10c3vaiikmmigmifapvdaw"))))
    (build-system gnu-build-system)
    (inputs `(("bdb" ,bdb-5.3)
              ("cyrus-sasl" ,cyrus-sasl)
@@ -126,19 +125,6 @@
     "OpenLDAP is a free implementation of the Lightweight Directory Access Protocol.")
    (license openldap2.8)
    (home-page "https://www.openldap.org/")))
-
-(define openldap-2.4.50
-  (package
-    (inherit openldap)
-    (version "2.4.50")
-    (source (origin
-              (method url-fetch)
-              (uri (string-append "https://www.openldap.org/software/download/"
-                                  "OpenLDAP/openldap-release/openldap-" version
-                                  ".tgz"))
-              (sha256
-               (base32
-                "1f46nlfwmys110j36sifm7ah8m8f3s10c3vaiikmmigmifapvdaw"))))))
 
 (define-public nss-pam-ldapd
   (package
@@ -243,7 +229,7 @@ servers from Python programs.")
      `(#:modules ((srfi srfi-1)
                   (guix build gnu-build-system)
                   ((guix build python-build-system)
-                   #:select (python-version))
+                   #:select (add-installed-pythonpath))
                   (guix build utils))
        #:imported-modules ((guix build python-build-system)
                            ,@%gnu-build-system-modules)
@@ -274,8 +260,8 @@ servers from Python programs.")
                (("'/usr/bin/certutil'")
                 (string-append "'" (which "certutil") "'"))
                (("'/usr/bin/c_rehash'")
-                (string-append "'" (which "perl") "', '" (which "c_rehash") "'")))
-             #t))
+                (string-append "'" (which "perl") "', '"
+                               (which "c_rehash") "'")))))
          (add-after 'unpack 'overwrite-default-locations
            (lambda* (#:key outputs #:allow-other-keys)
              (let ((out (assoc-ref outputs "out")))
@@ -293,28 +279,21 @@ servers from Python programs.")
                (substitute* '("src/lib389/lib389/instance/setup.py"
                               "src/lib389/lib389/instance/remove.py")
                  (("etc_dirsrv_path = .*")
-                  "etc_dirsrv_path = '/etc/dirsrv/'\n"))
-               #t)))
+                  "etc_dirsrv_path = '/etc/dirsrv/'\n")))))
          (add-after 'unpack 'fix-install-location-of-python-tools
            (lambda* (#:key inputs outputs #:allow-other-keys)
-             (let* ((out (assoc-ref outputs "out"))
-                    (pythondir (string-append
-                                out "/lib/python"
-                                (python-version (assoc-ref inputs "python"))
-                                "/site-packages/")))
+             (let* ((out (assoc-ref outputs "out")))
                ;; Install directory must be on PYTHONPATH.
-               (setenv "PYTHONPATH"
-                       (string-append (getenv "PYTHONPATH")
-                                      ":" pythondir))
+               (add-installed-pythonpath inputs outputs)
                ;; Install directory must exist.
                (mkdir-p pythondir)
                (substitute* "src/lib389/setup.py"
                  (("/usr") out))
                (substitute* "Makefile.am"
                  (("setup.py install --skip-build" m)
-                  (string-append m " --prefix=" out
-                                 " --root=/ --single-version-externally-managed"))))
-             #t))
+                  (string-append
+                   m " --prefix=" out
+                   " --root=/ --single-version-externally-managed"))))))
          (add-after 'build 'build-python-tools
            (lambda* (#:key make-flags #:allow-other-keys)
              ;; Set DETERMINISTIC_BUILD to override the embedded mtime in pyc
@@ -323,27 +302,24 @@ servers from Python programs.")
              ;; Use deterministic hashes for strings, bytes, and datetime
              ;; objects.
              (setenv "PYTHONHASHSEED" "0")
-             (apply invoke "make" "lib389" make-flags)
-             #t))
+             (apply invoke "make" "lib389" make-flags)))
          (add-after 'install 'install-python-tools
            (lambda* (#:key make-flags #:allow-other-keys)
-             (apply invoke "make" "lib389-install" make-flags)
-             #t))
+             (apply invoke "make" "lib389-install" make-flags)))
          (add-after 'install-python-tools 'wrap-python-tools
            (lambda* (#:key outputs #:allow-other-keys)
              (let* ((out  (assoc-ref outputs "out"))
-                    (path (getenv "PYTHONPATH")))
+                    (pythonpath (getenv "GUIX_PYTHONPATH")))
                (for-each (lambda (file)
                            (wrap-program (string-append out file)
-                             `("PYTHONPATH" ":" prefix (,path))))
+                             `("GUIX_PYTHONPATH" ":" prefix (,pythonpath))))
                          '("/sbin/dsconf"
                            "/sbin/dscreate"
                            "/sbin/dsctl"
                            "/sbin/dsidm"
                            "/bin/ds-logpipe.py"
                            "/bin/ds-replcheck"
-                           "/bin/readnsstate")))
-             #t)))))
+                           "/bin/readnsstate"))))))))
     (inputs
      `(("bdb" ,bdb)
        ("cracklib" ,cracklib)
@@ -358,7 +334,7 @@ servers from Python programs.")
        ("net-snmp" ,net-snmp)
        ("nspr" ,nspr)
        ("nss" ,nss)
-       ("nss:bin" ,nss "bin") ; for certutil
+       ("nss:bin" ,nss "bin")           ; for certutil
        ("openldap" ,openldap)
        ("openssl" ,openssl)             ; #included by net-snmp
        ("pcre" ,pcre)
@@ -424,4 +400,3 @@ Other features include:
 are mapped to a special Python case-insensitive dictionary, tracking the
 changes of the dictionary to modify the entry on the server easily.")
     (license expat)))
-

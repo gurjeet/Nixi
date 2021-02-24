@@ -37,14 +37,14 @@
 (define-public python-wheel
   (package
     (name "python-wheel")
-    (version "0.36.2")
+    (version "0.33.6")
     (source
       (origin
         (method url-fetch)
         (uri (pypi-uri "wheel" version))
         (sha256
          (base32
-          "0pi4w0brz7a86ddk6pm8p6j0w6d7jgacgxm0c2dab3k5cb8yy7p1"))))
+          "0ii6f34rvpjg3nmw4bc2h7fhdsy38y1h93hghncfs5akfrldmj8h"))))
     (build-system python-build-system)
     (arguments
      ;; FIXME: The test suite runs "python setup.py bdist_wheel", which in turn
@@ -127,7 +127,15 @@ Language (TOML) configuration files.")
                 "1d6m21lijwm04g50nwgsgj7x3vhblzw7jv05ah8psqgzk20bbch8"))))
     (build-system python-build-system)
     (arguments
-     `(#:tests? #f))                    ;to tests in the PyPI release
+     `(#:tests? #f                      ;to tests in the PyPI release
+       #:phases (modify-phases %standard-phases
+                  (add-after 'unpack 'relax-requirements
+                    (lambda _
+                      (substitute* "setup.cfg"
+                        ;; Drop the requirement on python-packaging, which is
+                        ;; not required.
+                        ((".*packaging.*")
+                         "")))))))
     (propagated-inputs
      `(("python-pep517", python-pep517-bootstrap)
        ("python-toml" ,python-toml)))

@@ -27,12 +27,15 @@
   #:use-module (gnu packages imagemagick)
   #:use-module (gnu packages inkscape)
   #:use-module (gnu packages tex)
+  #:use-module (gnu packages perl)
   #:use-module (gnu packages python)
   #:use-module (gnu packages base)
+  #:use-module (gnu packages web-browsers)
   #:use-module (gnu packages xml)
   #:use-module (guix licenses)
   #:use-module (guix packages)
   #:use-module (guix download)
+  #:use-module (guix build-system gnu)
   #:use-module (guix build-system trivial)
   #:use-module (guix build-system python))
 
@@ -168,15 +171,17 @@ by no means limited to these applications.)  This package provides XML DTDs.")
 (define-public docbook-xsl
   (package
     (name "docbook-xsl")
-    (version "1.79.1")
+    (version "1.79.2")
     (source (origin
               (method url-fetch)
-              (uri (string-append "mirror://sourceforge/docbook/docbook-xsl/"
-                                  version "/docbook-xsl-" version ".tar.bz2"))
-              (patches (search-patches "docbook-xsl-nonrecursive-string-subst.patch"))
+              (uri (string-append "https://github.com/docbook/xslt10-stylesheets"
+                                  "/releases/download/release%2F" version
+                                  "/docbook-xsl-" version ".tar.bz2"))
+              (patches (search-patches "docbook-xsl-support-old-url.patch"
+                                       "docbook-xsl-nonrecursive-string-subst.patch"))
               (sha256
                (base32
-                "0s59lihif2fr7rznckxr2kfyrvkirv76r1zvidp9b5mj28p4apvj"))
+                "0wd33z41kdsybyx3ay21w6bdlmgpd9kyn3mr5y520lsf8km28r9i"))
               (modules '((guix build utils)))
               (snippet
                '(begin
@@ -392,7 +397,7 @@ the in DocBook SGML DTDs.")
     (build-system python-build-system)
     ;; TODO: Add xfig/transfig for fig2dev utility
     (inputs
-     `(("texlive" ,(texlive-union (list texlive-amsfonts
+     `(("texlive" ,(texlive-updmap.cfg (list texlive-amsfonts
                                         texlive-latex-anysize
                                         texlive-latex-appendix
                                         texlive-latex-changebar
@@ -459,4 +464,89 @@ to DVI, PostScript or PDF by translating them in pure LaTeX as a first
 process.  MathML 2.0 markups are supported too.  It started as a clone of
 DB2LaTeX.")
     ;; lib/contrib/which is under an X11 license
+    (license gpl2+)))
+
+(define-public docbook-utils
+  (package
+    (name "docbook-utils")
+    (version "0.6.14")
+    (source (origin
+              (method url-fetch)
+              ;; The original sources are not accessible anymore.
+              (uri (string-append "http://deb.debian.org/debian/pool/main/"
+                                  "d/docbook-utils/docbook-utils_"
+                                  version ".orig.tar.gz"))
+              (sha256
+               (base32
+                "1scj5vgw1xz872pq54a89blcxqqm11p90yzv8a9mqq57x27apyj8"))))
+    (build-system gnu-build-system)
+    (arguments
+     `(#:phases (modify-phases %standard-phases
+                  (add-after 'unpack 'patch-build-system
+                    (lambda _
+                      (substitute* (find-files "." "\\.in$")
+                        ;; Do not hard-code SGML_CATALOG_FILES.
+                        ((".*SGML_CATALOG_FILES=/etc/sgml/catalog.*") "")
+                        ;; Use OpenSP and OpenJade.
+                        (("\\bjade\\b")
+                         "openjade")
+                        (("\\bnsgmls\\b")
+                         "onsgmls"))
+                      #t))
+                  (add-after 'unpack 'patch-jw.in
+                    ;; Do not override the SGML_CATALOG_FILES environment
+                    ;; variable.
+                    (lambda _
+                      (substitute* "bin/jw.in"
+                        ((".*SGML_CATALOG_FILES=`find.*")
+                         "")
+                        (("SGML_CATALOG_FILES=`echo.*")
+                         ":\n")
+                        (("SGML_CATALOG_FILES=\"\"")
+                         ":")
+                        (("\\bwhich\\b")
+                         "command -v"))
+                      #t))
+                  (add-after 'unpack 'patch-txt-backend
+                    (lambda _
+                      ;; Locate lynx, links or w3m from the PATH, not from
+                      ;; /usr/bin.
+                      (substitute* "backends/txt"
+                        (("CONVERT=/usr/bin/")
+                         "CONVERT=")
+                        (("\\[ -x /usr/bin/([^ ]+) \\]" dummy command)
+                         (string-append "command -v " command " > /dev/null")))
+                      #t)))))
+    ;; Propagated for convenience.  All these tools are used at run time to
+    ;; provide the complete functionality of the docbook-utils commands.
+    (propagated-inputs
+     `(("texlive-jadetex" ,texlive-jadetex)
+       ("docbook-sgml" ,docbook-sgml-3.1)
+       ("docbook-dsssl" ,docbook-dsssl)
+       ("openjade" ,openjade)
+       ("opensp" ,opensp)
+       ("lynx" ,lynx)
+       ("perl-sgmls" ,perl-sgmls)))
+    (home-page "https://packages.debian.org/sid/docbook-utils")
+    (synopsis "DocBook converter to other formats")
+    (description "The docbook-utils package is a collection of utilities
+intended to ease the use of SGML and XML.
+@table @command
+@item jw
+Convert a SGML DocBook file to other formats such as Hyper Text Markup
+Language (HTML), Rich Text Format (RTF), PostScript (PS), man, Portable
+Document Format (PDF), TeX, Texinfo or plain text (txt).  It can be used
+more conveniently via the following wrappers:
+@itemx docbook2dvi Convert a SGML DocBook file to the DVI format.
+@itemx docbook2html Convert a SGML DocBook file to an HTML document.
+@itemx docbook2man Convert a SGML DocBook file a man page.
+@itemx docbook2pdf Convert a SGML DocBook file to a PDF document.
+@itemx docbook2ps Convert a SGML DocBook file to a PS document.
+@itemx docbook2rtf Convert a SGML DocBook file to a RTF document.
+@itemx docbook2tex Convert a SGML DocBook file to a TeX document.
+@itemx docbook2texi Convert a SGML DocBook file to a Texinfo document.
+@itemx docbook2txt Convert a SGML DocBook file to a plain text document.
+@item sgmldiff
+Detect the differences in markup between two SGML files.
+@end table")
     (license gpl2+)))

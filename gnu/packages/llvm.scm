@@ -487,7 +487,7 @@ output), and Binutils.")
     (build-system cmake-build-system)
     (outputs '("out" "opt-viewer"))
     (native-inputs
-     `(("python" ,python-2) ;bytes->str conversion in clang>=3.7 needs python-2
+     `(("python" ,python-wrapper)
        ("perl"   ,perl)))
     (inputs
      `(("libffi" ,libffi)))
@@ -559,23 +559,23 @@ of programming tools as well as libraries with equivalent functionality.")
 (define-public llvm-10
   (package
     (inherit llvm-11)
-    (version "10.0.0")
+    (version "10.0.1")
     (source
      (origin
       (method url-fetch)
       (uri (llvm-uri "llvm" version))
       (sha256
        (base32
-        "1pwgm6cr0xr5a0hrbqs1zvsvvjvy0yq1y47c96804wcs795s90yz"))))))
+        "1wydhbp9kyjp5y0rc627imxgkgqiv3dfirbqil9dgpnbaw5y7n65"))))))
 
 (define-public clang-runtime-10
   (clang-runtime-from-llvm
    llvm-10
-   "0x9c531k6ww21s2mkdwqx1vbdjmx6d4wmfb8gdbj0wqa796sczba"))
+   "1yjqjri753w0fzmxcyz687nvd97sbc9rsqrxzpq720na47hwh3fr"))
 
 (define-public clang-10
   (clang-from-llvm llvm-10 clang-runtime-10
-                   "08fbxa2a0kr3ni35ckppj0kyvlcyaywrhpqwcdrdy0z900mhcnw8"
+                   "091bvcny2lh32zy8f3m9viayyhb2zannrndni7325rl85cwgr6pr"
                    #:patches '("clang-10.0-libc-search-path.patch")
                    #:tools-extra
                    (origin
@@ -584,7 +584,7 @@ of programming tools as well as libraries with equivalent functionality.")
                                              (package-version llvm-10)))
                      (sha256
                       (base32
-                       "074ija5s2jsdn0k035r2dzmryjmqxdnyg4xwvaqych2bazv8rpxc")))))
+                       "06n1yp638rh24xdxv9v2df0qajxbjz4w59b7dd4ky36drwmpi4yh")))))
 
 (define-public clang-toolchain-10
   (make-clang-toolchain clang-10))

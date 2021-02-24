@@ -527,31 +527,12 @@ and the cross tool chain."
                                (("/[^ ]+/lib/libc.so.0.3")
                                 (string-append out "/lib/libc.so.0.3"
                                                " libmachuser.so libhurduser.so"))))
-                           #t))
-                       ;; TODO: move to glibc in the next rebuild cycle
-                       (add-after 'unpack 'patch-libc/hurd
-                         (lambda* (#:key inputs #:allow-other-keys)
-                           (for-each
-                            (lambda (name)
-                              (let ((patch (assoc-ref inputs name)))
-                                (invoke "patch" "-p1" "--force" "-i" patch)))
-                            '("hurd-mach-print.patch"
-                              "hurd-gettyent.patch")))))
+                           #t)))
                      '())))))
 
         ;; Shadow the native "kernel-headers" because glibc's recipe expects the
         ;; "kernel-headers" input to point to the right thing.
         (propagated-inputs `(("kernel-headers" ,xheaders)))
-
-        ;; FIXME: 'static-bash' should really be an input, not a native input, but
-        ;; to do that will require building an intermediate cross libc.
-        (inputs (if (hurd-triplet? target)
-                    `(;; TODO: move to glibc in the next rebuild cycle
-                      ("hurd-mach-print.patch"
-                       ,(search-patch "glibc-hurd-mach-print.patch"))
-                      ("hurd-gettyent.patch"
-                       ,(search-patch "glibc-hurd-gettyent.patch")))
-                    '()))
 
         (native-inputs `(("cross-gcc" ,xgcc)
                          ("cross-binutils" ,xbinutils)

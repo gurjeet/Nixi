@@ -47,6 +47,7 @@
 ;;; Copyright © 2020 Michael Rohleder <mike@rohleder.de>
 ;;; Copyright © 2020, 2021 Ryan Prior <rprior@protonmail.com>
 ;;; Copyright © 2020 Alexandru-Sergiu Marton <brown121407@posteo.ro>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -684,7 +685,7 @@ programming language.")))
 (define-public lighttpd
   (package
     (name "lighttpd")
-    (version "1.4.58")
+    (version "1.4.59")
     (source (origin
               (method url-fetch)
               (uri (string-append "https://download.lighttpd.net/lighttpd/"
@@ -692,7 +693,7 @@ programming language.")))
                                   "lighttpd-" version ".tar.xz"))
               (sha256
                (base32
-                "03kd28nq6wndvvyk0zs5120ajvg1icnif5bvrsyhw69sl7yyyzr6"))))
+                "1mc421yrbnq3k6yrc708svp0fgcamrn5a0p2nvnhivysffr3v5gv"))))
     (build-system gnu-build-system)
     (arguments
      `(#:configure-flags
@@ -881,7 +882,7 @@ libraries for working with JNLP applets.")
 (define-public jansson
   (package
     (name "jansson")
-    (version "2.12")
+    (version "2.13.1")
     (source (origin
              (method url-fetch)
              (uri
@@ -889,7 +890,7 @@ libraries for working with JNLP applets.")
                              version ".tar.bz2"))
              (sha256
               (base32
-               "1lp1mv8pjp5yziws66cy0dhpcam4bbjqhffk13v4vgdybp674pb4"))))
+               "1g8h18vh8gyxlwfmvdivdp1siad26ywj5zr4j4avgdyjg7wa147f"))))
     (build-system gnu-build-system)
     (arguments
      `(#:configure-flags '("--disable-static")))
@@ -902,7 +903,6 @@ data.")
 
 (define-public json-c
   (package
-    (replacement json-c/fixed)
     (name "json-c")
     (version "0.14")
     (source (origin
@@ -912,7 +912,8 @@ data.")
                    version ".tar.gz"))
              (sha256
               (base32
-               "0w381krr99q5a2rypx4g437fa7gzgl82i64sgnrs6g5jr44dwxxk"))))
+               "0w381krr99q5a2rypx4g437fa7gzgl82i64sgnrs6g5jr44dwxxk"))
+              (patches (search-patches "json-c-CVE-2020-12762.patch"))))
     (build-system cmake-build-system)
     (home-page "https://github.com/json-c/json-c/wiki")
     (synopsis "JSON implementation in C")
@@ -922,15 +923,6 @@ easily construct JSON objects in C, output them as JSON-formatted strings and
 parse JSON-formatted strings back into the C representation of JSON objects.
 It aims to conform to RFC 7159.")
     (license license:x11)))
-
-(define json-c/fixed
-  (package
-    (inherit json-c)
-    (name "json-c")
-    (version "0.14")
-    (source (origin
-              (inherit (package-source json-c))
-              (patches (search-patches "json-c-CVE-2020-12762.patch"))))))
 
 ;; TODO: Remove these old versions when all dependents have been updated.
 (define-public json-c-0.13
@@ -1487,7 +1479,7 @@ used to validate and fix HTML data.")
 (define-public esbuild
   (package
     (name "esbuild")
-    (version "0.8.37")
+    (version "0.8.43")
     (source
      (origin
        (method git-fetch)
@@ -1496,7 +1488,7 @@ used to validate and fix HTML data.")
              (commit (string-append "v" version))))
        (file-name (git-file-name name version))
        (sha256
-        (base32 "0c98w2y4y9jaj2wv0334xwdbsvsi5hfh9jdkqr7ffz8lxhmh610f"))
+        (base32 "0ab8xpbh39nvrq1302qld692i4xy2mgynk6hjkwhlrziybj74njp"))
        (modules '((guix build utils)))
        (snippet
         '(begin
@@ -3739,16 +3731,14 @@ and IPv6 sockets, intended as a replacement for IO::Socket::INET.")
 (define-public perl-io-socket-ssl
   (package
     (name "perl-io-socket-ssl")
-    (version "2.066")
+    (version "2.068")
     (source (origin
               (method url-fetch)
               (uri (string-append "mirror://cpan/authors/id/S/SU/SULLR/"
                                   "IO-Socket-SSL-" version ".tar.gz"))
               (sha256
                (base32
-                "1kgbws7dwp2hh16qid7169dfkhmcwg7dz9ffbm6k0id5h53hciqd"))
-              (patches (search-patches
-                        "perl-io-socket-ssl-openssl-1.0.2f-fix.patch"))))
+                "1ycgzg1l7p07y5wc0vzgnj122vm51p5aqpi4s56pp0piaq0gq824"))))
     (build-system perl-build-system)
     (propagated-inputs
      `(("perl-net-ssleay" ,perl-net-ssleay)
@@ -4368,14 +4358,14 @@ applications.")
 (define-public perl-uri
   (package
     (name "perl-uri")
-    (version "1.76")
+    (version "5.05")
     (source (origin
              (method url-fetch)
              (uri (string-append "mirror://cpan/authors/id/O/OA/OALDERS/"
                                  "URI-" version ".tar.gz"))
              (sha256
               (base32
-               "0gj1aj18k43kmzc3y1zhj5giinf8rksacf757r475xfna0fqxjdj"))))
+               "1v3r3ck67w272kzfgm1nd3wb41av1hlnza56vkxxj1i7s3917hd5"))))
     (build-system perl-build-system)
     (native-inputs
      ;; For tests.
@@ -4642,20 +4632,20 @@ CDF, Atom 0.3, and Atom 1.0 feeds.")
   (package-with-python2 python-feedparser))
 
 (define-public guix-data-service
-  (let ((commit "e3878fefb4184f3ad45a6e6f434767c0bf109db8")
-        (revision "23"))
+  (let ((commit "b7ba8d0c2ca3aca9ba5b5f9f27b9778ee949d20e")
+        (revision "25"))
     (package
       (name "guix-data-service")
       (version (string-append "0.0.1-" revision "." (string-take commit 7)))
       (source (origin
                 (method git-fetch)
                 (uri (git-reference
-                      (url "https://git.savannah.gnu.org/git/guix/data-service.git")
+                      (url "https://git.savannah.gnu.org/git/guix/data-service.git/")
                       (commit commit)))
                 (file-name (git-file-name name version))
                 (sha256
                  (base32
-                  "0002ckayjnd6mw7a0m7q307jdwc9vsjgiidp72463xyp0yrnjdjf"))))
+                  "0brv64bsqysl7dncz067blwvmqrlx99c2kwrgpz6k0nqv8nzsa28"))))
       (build-system gnu-build-system)
       (arguments
        '(#:modules ((guix build utils)
@@ -4737,7 +4727,7 @@ CDF, Atom 0.3, and Atom 1.0 feeds.")
 through a web interface.  It supports listening to the guix-commits mailing
 list to find out about new revisions, then loads the data from these in to a
 PostgreSQL database.")
-      (home-page "http://data.guix.gnu.org/")
+      (home-page "https://data.guix.gnu.org/")
       (license license:agpl3+))))
 
 (define-public gumbo-parser
@@ -6442,23 +6432,13 @@ Instagram and YouTube.")
      `(#:python ,python-2
        #:phases
        (modify-phases %standard-phases
-         ;; Move the 'check phase to after 'install, so that the installed
-         ;; library can be used
-         (delete 'check)
-         (add-after 'install 'check
+         (replace 'check
            (lambda* (#:key outputs #:allow-other-keys)
              (let ((out (assoc-ref outputs "out")))
-               ;; Set PYTHONPATH so that the installed linkchecker is used
-               (setenv "PYTHONPATH"
-                       (string-append out "/lib/python2.7/site-packages"
-                                      ":"
-                                      (getenv "PYTHONPATH")))
                ;; Remove this directory to avoid it being used when running
                ;; the tests
                (delete-file-recursively "linkcheck")
-
-               (invoke "py.test" "tests"))
-             #t)))))
+               (invoke "py.test" "tests")))))))
     (home-page "https://linkcheck.github.io/linkchecker")
     (synopsis "Check websites for broken links")
     (description "LinkChecker is a website validator.  It checks for broken
@@ -7449,8 +7429,7 @@ derivation by David Revoy from the original MonsterID by Andreas Gohr.")
 (define-public nghttp2
   (package
     (name "nghttp2")
-    (version "1.40.0")
-    (replacement nghttp2-1.41)
+    (version "1.41.0")
     (source
      (origin
        (method url-fetch)
@@ -7459,7 +7438,7 @@ derivation by David Revoy from the original MonsterID by Andreas Gohr.")
                            "nghttp2-" version ".tar.xz"))
        (sha256
         (base32
-         "0wwhwv7cvi1vxpdjwvg0kpa4jzhszclpnwrwfcw728zz53a47z09"))))
+         "1hk77vngjmvvzb5y1gi1aqwf6qywrc7yak08zvzb7x81qs6mphmb"))))
     (build-system gnu-build-system)
     (outputs (list "out"
                    "lib"))              ; only libnghttp2
@@ -7532,20 +7511,6 @@ compressed JSON header blocks.
 @item @command{inflatehd} converts such compressed headers back to JSON pairs.
 @end itemize\n")
     (license license:expat)))
-
-(define-public nghttp2-1.41                       ;fixes CVE-2020-11080
-  (package
-    (inherit nghttp2)
-    (version "1.41.0")
-    (source
-     (origin
-       (method url-fetch)
-       (uri (string-append "https://github.com/nghttp2/nghttp2/"
-                           "releases/download/v" version "/"
-                           "nghttp2-" version ".tar.xz"))
-       (sha256
-        (base32
-         "1hk77vngjmvvzb5y1gi1aqwf6qywrc7yak08zvzb7x81qs6mphmb"))))))
 
 (define-public hpcguix-web
   (let ((commit "9de63562b06b4aef3a3afe5ecb18d3c91e57ee74")
@@ -8039,3 +8004,41 @@ handling library written in C89 (\"ANSI C\").  uriparser is fast and supports
 Unicode.")
       (home-page "https://uriparser.github.io/")
       (license license:bsd-3))))
+
+(define-public quark
+  ;; No releases yet
+  (let ((revision "0")
+        (commit "c6a9055e5a30be570e30da8d216c39662c3a3f99"))
+    (package
+      (name "quark")
+      (version (git-version "0.0.0" revision commit))
+      (source (origin
+                (method git-fetch)
+                (uri (git-reference
+                      (url "https://git.suckless.org/quark/")
+                      (commit commit)))
+                (file-name (git-file-name name version))
+                (sha256
+                 (base32
+                  "1znvnr30xi5vgd6n3wvgv9pwj992zpzzjk0fmq28ydf1l6kqvkm7"))))
+      (build-system gnu-build-system)
+      (arguments
+       `(#:tests? #f ; no tests
+         #:make-flags
+         (list (string-append "CC=" ,(cc-for-target))
+               (string-append "PREFIX=" %output))
+         #:phases
+         (modify-phases %standard-phases
+           (delete 'configure)))) ; no configure script
+      (home-page "https://tools.suckless.org/quark/")
+      (synopsis "Small and simple HTTP GET/HEAD-only web server for static
+content")
+      (description "Quark is an extremely small and simple HTTP GET/HEAD only
+web server for static content.  TLS is not natively supported and should be
+provided by a TLS reverse proxy (e.g. tlstunnel, hitch or stunnel).")
+      (license license:isc)
+
+      ;; XXX: Ignore this CVE to work around a name clash with the unrelated
+      ;; "cpe:2.3:a:comelz:quark" package.  The proper fix is for (guix cve)
+      ;; to account for "vendor names".
+      (properties '((lint-hidden-cve . ("CVE-2019-15520")))))))

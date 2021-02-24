@@ -515,7 +515,7 @@ featuring various improvements and bug fixes.")))
      ;; FIXME: with texlive-tiny citation references are rendered as question
      ;; marks.  During the build warnings like these are printed:
      ;; LaTeX Warning: Citation `nabors91' on page 2 undefined on input line 3.
-     `(("texlive" ,(texlive-union (list texlive-fonts-amsfonts)))
+     `(("texlive" ,(texlive-updmap.cfg (list texlive-fonts-amsfonts)))
        ("ghostscript" ,ghostscript)))
     (arguments
      `(#:make-flags '("CC=gcc" "RM=rm" "SHELL=sh" "all")
@@ -930,9 +930,9 @@ Emacs).")
                            ,(version-major+minor
                              (package-version python))
                            "/site-packages:"
-                           (getenv "PYTHONPATH"))))
+                           (getenv "GUIX_PYTHONPATH"))))
                (wrap-program file
-                 `("PYTHONPATH" ":" prefix (,path))
+                 `("GUIX_PYTHONPATH" ":" prefix (,path))
                  `("PATH" ":" prefix
                    (,(string-append python "/bin:")))))
              #t)))))
@@ -1193,9 +1193,9 @@ the 'showing the effect of'-style of operation.")
                            ,(version-major+minor
                              (package-version python))
                            "/site-packages:"
-                           (getenv "PYTHONPATH"))))
+                           (getenv "GUIX_PYTHONPATH"))))
                (wrap-program file
-                 `("PYTHONPATH" ":" prefix (,path))
+                 `("GUIX_PYTHONPATH" ":" prefix (,path))
                  `("PATH" ":" prefix
                    (,(string-append python "/bin:")))))
              #t)))))
@@ -2612,18 +2612,12 @@ comments.")))
                          "/include/shiboken2"))
          #:phases
          (modify-phases %standard-phases
-           (add-before 'configure 'restore-pythonpath
-             (lambda _
-               (substitute* "src/Main/MainGui.cpp"
-                 (("_?putenv\\(\"PYTHONPATH=\"\\);") ""))
-               #t))
            (add-after 'install 'wrap-pythonpath
              (lambda* (#:key outputs #:allow-other-keys)
                (let ((out (assoc-ref outputs "out")))
                  (wrap-program (string-append out "/bin/FreeCAD")
-                   (list "PYTHONPATH"
-                         'prefix (list (getenv "PYTHONPATH")))))
-               #t)))))
+                   (list "GUIX_PYTHONPATH"
+                         'prefix (list (getenv "GUIX_PYTHONPATH"))))))))))
       (home-page "https://www.freecadweb.org/")
       (synopsis "Your Own 3D Parametric Modeler")
       (description
@@ -2920,9 +2914,7 @@ GUI.")
       ;; The GUI, which we elide, requires tcl and tk.
       (native-inputs `(("autoconf" ,autoconf)
                        ("automake" ,automake)
-                       ;; Requires bison 3.6+ but we currently only have 3.5.
-                       ;; Bison 3.6 will be available in the next core update.
-                       ("bison-3.6" ,bison-3.6)
+                       ("bison" ,bison)
                        ("clisp" ,clisp)
                        ("dejagnu" ,dejagnu)
                        ("flex" ,flex)

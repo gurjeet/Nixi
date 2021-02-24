@@ -26,6 +26,7 @@
 ;;; Copyright © 2020 Giacomo Leidi <goodoldpaul@autistici.org>
 ;;; Copyright © 2020 R Veera Kumar <vkor@vkten.in>
 ;;; Copyright © 2020 Maxim Cournoyer <maxim.cournoyer@gmail.com>
+;;; Copyright © 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
 ;;; Copyright © 2020 Zhu Zihao <all_but_last@163.com>
 ;;; Copyright © 2020 Vinicius Monego <monego@posteo.net>
 ;;;
@@ -673,15 +674,15 @@ arithmetic ops.")
 (define-public jbig2dec
   (package
     (name "jbig2dec")
-    (version "0.18")
+    (version "0.19")
     (source (origin
               (method url-fetch)
               (uri (string-append "https://github.com/ArtifexSoftware"
                                   "/ghostpdl-downloads/releases/download"
-                                  "/gs951/" name "-" version ".tar.gz"))
+                                  "/gs9533/" name "-" version ".tar.gz"))
               (sha256
                (base32
-                "0pigfw2v0ppvr0lbysm69gx0zsa5q2q92yrb8af2j3im6x97f6cy"))))
+                "0dwa24kjqyg9hmm40fh048sdxfpnasz43l2rm8wlkw1qbdlpd517"))))
     (build-system gnu-build-system)
     (arguments '(#:configure-flags '("--disable-static")
                  #:phases (modify-phases %standard-phases
@@ -699,7 +700,7 @@ arithmetic ops.")
      `(("autoconf" ,autoconf)
        ("automake" ,automake)
        ("libtool" ,libtool)
-       ("python" ,python-wrapper)))     ;for tests
+       ("python" ,python-minimal-wrapper)))     ;for tests
     (synopsis "Decoder of the JBIG2 image compression format")
     (description
       "JBIG2 is designed for lossy or lossless encoding of @code{bilevel} (1-bit
@@ -829,8 +830,25 @@ test suite, including conformance tests (following Rec. ITU-T T.803 | ISO/IEC
         (base32 "1dn98d2dfa1lqyxxmab6rrcv52dyhjr4g7i4xf2w54fqsx14ynrb"))))
     (build-system cmake-build-system)
     (arguments
-     '(#:tests? #f           ;TODO: requires a 1.1 GiB data repository
-       #:configure-flags '("-DBUILD_STATIC_LIBS=OFF")))
+     `(#:configure-flags
+       (list
+        "-DBUILD_STATIC_LIBS=OFF"
+        "-DBUILD_UNIT_TESTS=ON"
+        "-DBUILD_TESTING=ON"
+        (string-append "-DOPJ_DATA_ROOT="
+                       (assoc-ref %build-inputs "openjpeg-data")))
+       #:phases
+       (modify-phases %standard-phases
+         ;; To be re-enabled after upstream fixes the bug,
+         ;; https://github.com/uclouvain/openjpeg/issues/1264
+         (add-after 'unpack 'disable-failing-tests
+           (lambda _
+             (substitute* "tests/CMakeLists.txt"
+               (("add_subdirectory\\(nonregression\\)")
+                ""))
+             #t)))))
+    (native-inputs
+     `(("openjpeg-data" ,openjpeg-data))) ; Files for test-suite
     (inputs
      `(("lcms" ,lcms)
        ("libpng" ,libpng)
@@ -981,7 +999,7 @@ Metafile}, and @acronym{EMF+, Enhanced Metafile Plus} files.")
 (define-public imlib2
   (package
     (name "imlib2")
-    (version "1.7.0")
+    (version "1.7.1")
     (source (origin
               (method url-fetch)
               (uri (string-append
@@ -989,7 +1007,7 @@ Metafile}, and @acronym{EMF+, Enhanced Metafile Plus} files.")
                     "/imlib2-" version ".tar.bz2"))
               (sha256
                (base32
-                "0zdk4afdrrr1539f2q15zja19j4wwfmpswzws2ffgflcnhywlxhr"))))
+                "01y45cdml2dr9cqgybrgxr86sd77d1qfa1gzclzy1j6bkminlfh3"))))
     (build-system gnu-build-system)
     (arguments
      '(#:configure-flags (list "--disable-static")))
@@ -1617,15 +1635,14 @@ is hereby granted."))))
 (define-public libjpeg-turbo
   (package
     (name "libjpeg-turbo")
-    (version "2.0.4")
-    (replacement libjpeg-turbo/fixed)
+    (version "2.0.5")
     (source (origin
               (method url-fetch)
               (uri (string-append "mirror://sourceforge/libjpeg-turbo/"
                                   version "/libjpeg-turbo-" version ".tar.gz"))
               (sha256
                (base32
-                "01ill8bgjyk582wipx7sh7gj2nidylpbzvwhx0wkcm6mxx3qbp9k"))))
+                "0pbv6pc97kbj7ib31qcwi7lnmm9xg5y3b11aasmkhfjvf7rgdy0n"))))
     (build-system cmake-build-system)
     (native-inputs
      `(("nasm" ,nasm)))
@@ -1674,18 +1691,6 @@ and decompress to 32-bit and big-endian pixel buffers (RGBX, XBGR, etc.).")
     (license (list license:bsd-3        ;the TurboJPEG API library and programs
                    license:ijg          ;the libjpeg library and associated tools
                    license:zlib))))     ;the libjpeg-turbo SIMD extensions
-
-(define libjpeg-turbo/fixed
-  (package
-    (inherit libjpeg-turbo)
-    (version "2.0.5")
-    (source (origin
-              (method url-fetch)
-              (uri (string-append "mirror://sourceforge/libjpeg-turbo/"
-                                  version "/libjpeg-turbo-" version ".tar.gz"))
-              (sha256
-               (base32
-                "0pbv6pc97kbj7ib31qcwi7lnmm9xg5y3b11aasmkhfjvf7rgdy0n"))))))
 
 (define-deprecated libjpeg libjpeg-turbo)
 (export libjpeg)

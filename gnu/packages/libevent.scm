@@ -41,7 +41,7 @@
 (define-public libevent
   (package
     (name "libevent")
-    (version "2.1.11")
+    (version "2.1.12")
     (source (origin
               (method url-fetch)
               (uri (string-append
@@ -49,12 +49,13 @@
                     version "-stable/libevent-" version "-stable.tar.gz"))
               (sha256
                (base32
-                "0g988zqm45sj1hlhhz4il5z4dpi5dl74hzjwzl4md37a09iaqnx6"))))
+                "1fq30imk8zd26x8066di3kpc5zyfc5z6frr3zll685zcx4dxxrlj"))))
     (build-system gnu-build-system)
     (outputs '("out" "bin"))
     (arguments
      ;; This skips some of the tests which fail on armhf and aarch64.
-     '(#:configure-flags '("--disable-libevent-regress")))
+     '(#:configure-flags '("--disable-libevent-regress"
+                           "--disable-openssl")))
     (inputs
      `(("python" ,python-wrapper)))     ;for 'event_rpcgen.py'
     (native-inputs
@@ -76,7 +77,7 @@ loop.")
 (define-public libev
   (package
     (name "libev")
-    (version "4.31")
+    (version "4.33")
     (source (origin
               (method url-fetch)
               (uri (string-append "http://dist.schmorp.de/libev/Attic/libev-"
@@ -84,7 +85,7 @@ loop.")
                                   ".tar.gz"))
               (sha256
                (base32
-                "0nkfqv69wfyy2bpga4d53iqydycpik8jp8x6q70353hia8mmv1gd"))))
+                "1sjs4324is7fp21an4aas2z4dwsvs6z4xwrmp72vwpq1s6wbfzjh"))))
     (build-system gnu-build-system)
     (arguments
      '(#:configure-flags '("--disable-static")))
@@ -102,14 +103,14 @@ limited support for fork events.")
 (define-public libuv
   (package
     (name "libuv")
-    (version "1.35.0")
+    (version "1.38.1")
     (source (origin
               (method url-fetch)
               (uri (string-append "https://dist.libuv.org/dist/v" version
                                   "/libuv-v" version ".tar.gz"))
               (sha256
                (base32
-                "0126mfmaw3s92dsga60sydgwjmzwg9cd36n127pydmisah17v50f"))))
+                "0iy6yp9nrxpj643w7la3kl3j59ni59b0l4v6n23a63s8kqkpvkhf"))))
     (build-system gnu-build-system)
     (arguments
      '(#:configure-flags '("--disable-static")

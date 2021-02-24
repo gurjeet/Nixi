@@ -4,12 +4,13 @@
 ;;; Copyright © 2015, 2017 Ricardo Wurmus <rekado@elephly.net>
 ;;; Copyright © 2016, 2019 Efraim Flashner <efraim@flashner.co.il>
 ;;; Copyright © 2016 Alex Kost <alezost@gmail.com>
-;;; Copyright © 2017, 2019 Marius Bakke <mbakke@fastmail.com>
+;;; Copyright © 2017, 2019, 2020 Marius Bakke <marius@gnu.org>
 ;;; Copyright © 2017 Mathieu Othacehe <m.othacehe@gmail.com>
 ;;; Copyright © 2017 Eric Bavier <bavier@member.fsf.org>
 ;;; Copyright © 2018, 2019, 2020 Tobias Geerinckx-Rice <me@tobias.gr>
 ;;; Copyright © 2019 Miguel <rosen644835@gmail.com>
 ;;; Copyright © 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
+;;; Copyright © 2020 EuAndreh <eu@euandre.org>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -27,12 +28,14 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (gnu packages gettext)
-  #:use-module ((guix licenses) #:select (gpl2+ gpl3+))
+  #:use-module ((guix licenses) #:select (gpl2+ gpl3+ bsd-3))
   #:use-module (gnu packages)
   #:use-module (guix packages)
   #:use-module (guix download)
   #:use-module (guix build-system gnu)
   #:use-module (guix build-system perl)
+  #:use-module (guix build-system python)
+  #:use-module (gnu packages check)
   #:use-module (gnu packages docbook)
   #:use-module (gnu packages emacs)
   #:use-module (gnu packages hurd)
@@ -42,19 +45,21 @@
   #:use-module (gnu packages perl-check)
   #:use-module (gnu packages tex)
   #:use-module (gnu packages xml)
+  #:use-module (gnu packages python-xyz)
+  #:use-module (gnu packages sphinx)
   #:use-module (guix utils))
 
 (define-public gettext-minimal
   (package
     (name "gettext-minimal")
-    (version "0.20.1")
+    (version "0.21")
     (source (origin
               (method url-fetch)
               (uri (string-append "mirror://gnu/gettext/gettext-"
                                   version ".tar.gz"))
               (sha256
                (base32
-                "0p3zwkk27wm2m2ccfqm57nj7vqkmfpn7ja1nf65zmhz8qqs5chb6"))))
+                "04kbg1sx0ncfrsbr85ggjslqkzzb243fcw9nyh3rrv1a22ihszf7"))))
     (build-system gnu-build-system)
     (outputs '("out"
                "doc"))                            ;9 MiB of HTML
@@ -183,6 +188,41 @@ allows applications to emit text annotated with styling information, such as
 color, font attributes (weight, posture), or underlining.")
     (license gpl3+)))
 
+(define-public mdpo
+  (package
+    (name "mdpo")
+    (version "0.3.6")
+    (source
+     (origin
+       (method url-fetch)
+       (uri (pypi-uri "mdpo" version))
+       (sha256
+        (base32 "0kgbm0af7jwpfspa2xxiy9nc2l1r2s1rhbhz4r229zcqv49ak6sq"))))
+    (build-system python-build-system)
+    (native-inputs
+     `(("python-bump2version" ,python-bump2version)
+       ("python-flake8" ,python-flake8)
+       ("python-flake8-implicit-str-concat" ,python-flake8-implicit-str-concat)
+       ("python-flake8-print" ,python-flake8-print)
+       ("python-isort" ,python-isort)
+       ("python-pre-commit" ,python-pre-commit)
+       ("python-pytest" ,python-pytest)
+       ("python-pytest-cov" ,python-pytest-cov)
+       ("python-sphinx" ,python-sphinx)
+       ("python-sphinx-argparse" ,python-sphinx-argparse)
+       ("python-sphinx-rtd-theme" ,python-sphinx-rtd-theme)
+       ("python-twine" ,python-twine)
+       ("python-yamllint" ,python-yamllint)))
+    (propagated-inputs
+     `(("python-polib" ,python-polib)
+       ("python-pymd4c" ,python-pymd4c)))
+    (home-page "https://github.com/mondeja/mdpo")
+    (synopsis "Markdown file translation utilities using pofiles")
+    (description
+     "The mdpo utility creates pofiles, the format stabilished by GNU Gettext,
+from Markdown files.")
+    (license bsd-3)))
+
 (define-public po4a
   (package
     (name "po4a")
@@ -199,12 +239,14 @@ color, font attributes (weight, posture), or underlining.")
      `(#:phases
        (modify-phases %standard-phases
          (add-after 'install 'wrap-programs
-          (lambda* (#:key outputs #:allow-other-keys)
+          (lambda* (#:key inputs outputs #:allow-other-keys)
             ;; Make sure all executables in "bin" find the Perl modules
-            ;; provided by this package at runtime.
+            ;; required by this package at runtime.
             (let* ((out  (assoc-ref outputs "out"))
                    (bin  (string-append out "/bin/"))
-                   (path (string-append out "/lib/perl5/site_perl")))
+                   (Pod::Parser (assoc-ref inputs "perl-pod-parser"))
+                   (path (string-append out "/lib/perl5/site_perl:"
+                                        Pod::Parser "/lib/perl5/site_perl")))
               (for-each (lambda (file)
                           (wrap-program file
                             `("PERL5LIB" ":" prefix (,path))))
@@ -224,6 +266,13 @@ color, font attributes (weight, posture), or underlining.")
                 (string-append (assoc-ref inputs "docbook-xml")
                                "/xml/dtd/docbook/")))
              #t))
+         (add-before 'build 'do-not-override-PERL5LIB
+           (lambda _
+             ;; Don't hard-code PERL5LIB to include just the build directory
+             ;; so that the build script finds modules from inputs.
+             (substitute* "Po4aBuilder.pm"
+               (("PERL5LIB=lib") ""))
+             (setenv "PERL5LIB" (string-append (getenv "PERL5LIB") ":lib"))))
          (add-before 'check 'disable-failing-tests
            (lambda _
              ;; FIXME: these tests require SGMLS.pm.
@@ -247,6 +296,8 @@ color, font attributes (weight, posture), or underlining.")
        ("perl-test-pod" ,perl-test-pod)
        ("perl-yaml-tiny" ,perl-yaml-tiny)
        ("texlive" ,texlive-tiny)))
+    (inputs
+     `(("perl-pod-parser" ,perl-pod-parser)))
     (home-page "https://po4a.org/")
     (synopsis "Scripts to ease maintenance of translations")
     (description

@@ -1,5 +1,6 @@
 ;;; GNU Guix --- Functional package management for GNU
 ;;; Copyright © 2017, 2018, 2019, 2020 Paul Garlick <pgarlick@tourbillion-technology.com>
+;;; Copyright © 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -267,16 +268,13 @@ problems for efficient solution on parallel systems.")
          (replace 'check
            (lambda _
              (setenv "HOME" "/tmp")
-             (setenv "PYTHONPATH"
-                     (string-append (getcwd) ":" (getenv "PYTHONPATH")))
              (with-directory-excursion "test"
                ;; Disable parallel tests to avoid race condition.  See
                ;; https://github.com/pytest-dev/pytest-cov/issues/237.
                (substitute* "runtests.sh"
                  (("for p in 1 4 8 16; do")
                   "for p in 1; do"))
-               (invoke "./runtests.sh"))
-             #t)))))
+               (invoke "./runtests.sh")))))))
     (home-page "https://bitbucket.org/fenics-project/dijitso/")
     (synopsis "Distributed just-in-time building of shared libraries")
     (description
@@ -312,11 +310,7 @@ the complexity of that interface.  Parallel support depends on the
        (modify-phases %standard-phases
          (replace 'check
            (lambda _
-             (setenv "PYTHONPATH"
-                     (string-append (getcwd) ":" (getenv "PYTHONPATH")))
-             (with-directory-excursion "test"
-               (invoke "py.test"))
-             #t)))))
+             (invoke "py.test" "test"))))))
     (home-page "https://bitbucket.org/fenics-project/ufl/")
     (synopsis "Unified language for form-compilers")
     (description "The Unified Form Language (UFL) is a domain specific
@@ -350,8 +344,6 @@ UFL is part of the FEniCS Project.")
        (modify-phases %standard-phases
          (replace 'check
            (lambda _
-             (setenv "PYTHONPATH"
-                     (string-append (getcwd) ":" (getenv "PYTHONPATH")))
              (with-directory-excursion "test"
                ;; FIXME: three FIAT test modules are known to fail
                ;; with recent versions of pytest (>= 4).  These are
@@ -361,8 +353,7 @@ UFL is part of the FEniCS Project.")
                (invoke "py.test" "unit/"
                        "--ignore=unit/test_fiat.py"
                        "--ignore=unit/test_quadrature.py"
-                       "--ignore=unit/test_reference_element.py"))
-             #t)))))
+                       "--ignore=unit/test_reference_element.py")))))))
     (home-page "https://bitbucket.org/fenics-project/fiat/")
     (synopsis "Tabulation of finite element function spaces")
     (description
@@ -402,8 +393,6 @@ FIAT is part of the FEniCS Project.")
          (replace 'check
            (lambda _
              (setenv "HOME" (getcwd))
-             (setenv "PYTHONPATH"
-                     (string-append (getcwd) ":" (getenv "PYTHONPATH")))
              (with-directory-excursion "test"
                ;; FIXME: the tests in subdirectory
                ;; 'unit/ufc/finite_element' require the ffc_factory
@@ -628,8 +617,7 @@ user interface to the FEniCS core components and external libraries.")
              ;; Define paths to store locations.
              (setenv "PYBIND11_DIR" (assoc-ref %build-inputs "pybind11"))
              ;; Move to python sub-directory.
-             (chdir "python")
-             #t))
+             (chdir "python")))
          (add-after 'build 'mpi-setup
            ,%openmpi-setup)
          (add-before 'check 'pre-check
@@ -671,14 +659,8 @@ user interface to the FEniCS core components and external libraries.")
                  "d for d in demos if d[0].stem not in "
                  "excludeList]\n")))
              (setenv "HOME" (getcwd))
-             (setenv "PYTHONPATH"
-                     (string-append
-                      (getcwd) "/build/lib.linux-x86_64-"
-                      ,(version-major+minor (package-version python)) ":"
-                      (getenv "PYTHONPATH")))
              ;; Restrict OpenBLAS to MPI-only in preference to MPI+OpenMP.
-             (setenv "OPENBLAS_NUM_THREADS" "1")
-             #t))
+             (setenv "OPENBLAS_NUM_THREADS" "1")))
          (replace 'check
            (lambda _
              (with-directory-excursion "test"
@@ -690,8 +672,7 @@ user interface to the FEniCS core components and external libraries.")
                                        (min 3 (parallel-job-count)))
                        "python" "-B" "-m"
                        "pytest" "unit" "--ignore"
-                       "unit/nls/test_PETScSNES_solver.py"))
-             #t))
+                       "unit/nls/test_PETScSNES_solver.py"))))
          (add-after 'install 'install-demo-files
            (lambda* (#:key outputs #:allow-other-keys)
              (let* ((demos (string-append
@@ -705,8 +686,7 @@ user interface to the FEniCS core components and external libraries.")
                                (unless (equal? "." dir)
                                  (mkdir-p tgt-dir)
                                  (install-file file tgt-dir))))
-                           (find-files "." ".*\\.(py|gz|xdmf)$"))))
-             #t)))))
+                           (find-files "." ".*\\.(py|gz|xdmf)$")))))))))
     (home-page "https://fenicsproject.org/")
     (synopsis "High-level environment for solving differential equations")
     (description

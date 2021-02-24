@@ -1,5 +1,5 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2019, 2020, 2021 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -215,7 +215,7 @@ use `--strip-all' as the arguments to `strip'."
     (arguments
      (let ((a (default-keyword-arguments (package-arguments p)
                 '(#:configure-flags '()
-                  #:strip-flags '("--strip-debug")))))
+                  #:strip-flags '("--strip-unneeded")))))
        (substitute-keyword-arguments a
          ((#:configure-flags flags)
           `(cons* "--disable-shared" "LDFLAGS=-static" ,flags))
@@ -324,10 +324,15 @@ standard packages used as implicit inputs of the GNU build system."
   ;; Regexp matching license files.
   "^(COPYING.*|LICEN[CS]E.*|[Ll]icen[cs]e.*|Copy[Rr]ight(\\.(txt|md))?)$")
 
+(define %bootstrap-scripts
+  ;; Typical names of Autotools "bootstrap" scripts.
+  '("bootstrap" "bootstrap.sh" "autogen.sh"))
+
 (define* (gnu-build store name input-drvs
                     #:key (guile #f)
                     (outputs '("out"))
                     (search-paths '())
+                    (bootstrap-scripts (list 'quote %bootstrap-scripts))
                     (configure-flags ''())
                     (make-flags ''())
                     (out-of-source? #f)
@@ -337,11 +342,12 @@ standard packages used as implicit inputs of the GNU build system."
                     (parallel-tests? #t)
                     (patch-shebangs? #t)
                     (strip-binaries? #t)
-                    (strip-flags ''("--strip-debug"
+                    (strip-flags ''("--strip-unneeded"
                                     "--enable-deterministic-archives"))
                     (strip-directories ''("lib" "lib64" "libexec"
                                           "bin" "sbin"))
                     (validate-runpath? #t)
+                    (make-dynamic-linker-cache? #t)
                     (license-file-regexp %license-file-regexp)
                     (phases '%standard-phases)
                     (locale "en_US.utf8")
@@ -400,6 +406,7 @@ packages that must not be referenced."
                                         search-paths)
                   #:phases ,phases
                   #:locale ,locale
+                  #:bootstrap-scripts ,bootstrap-scripts
                   #:configure-flags ,configure-flags
                   #:make-flags ,make-flags
                   #:out-of-source? ,out-of-source?
@@ -410,6 +417,7 @@ packages that must not be referenced."
                   #:patch-shebangs? ,patch-shebangs?
                   #:strip-binaries? ,strip-binaries?
                   #:validate-runpath? ,validate-runpath?
+                  #:make-dynamic-linker-cache? ,make-dynamic-linker-cache?
                   #:license-file-regexp ,license-file-regexp
                   #:strip-flags ,strip-flags
                   #:strip-directories ,strip-directories)))
@@ -484,6 +492,7 @@ is one of `host' or `target'."
                           (search-paths '())
                           (native-search-paths '())
 
+                          (bootstrap-scripts (list 'quote %bootstrap-scripts))
                           (configure-flags ''())
                           (make-flags ''())
                           (out-of-source? #f)
@@ -492,11 +501,17 @@ is one of `host' or `target'."
                           (parallel-build? #t) (parallel-tests? #t)
                           (patch-shebangs? #t)
                           (strip-binaries? #t)
-                          (strip-flags ''("--strip-debug"
+                          (strip-flags ''("--strip-unneeded"
                                           "--enable-deterministic-archives"))
                           (strip-directories ''("lib" "lib64" "libexec"
                                                 "bin" "sbin"))
                           (validate-runpath? #t)
+
+                          ;; We run 'ldconfig' to generate ld.so.cache and it
+                          ;; generally can't do that for cross-built binaries
+                          ;; ("ldconfig: foo.so is for unknown machine 40.").
+                          (make-dynamic-linker-cache? #f)
+
                           (license-file-regexp %license-file-regexp)
                           (phases '%standard-phases)
                           (locale "en_US.utf8")
@@ -567,6 +582,7 @@ platform."
                                              native-search-paths)
                     #:phases ,phases
                     #:locale ,locale
+                    #:bootstrap-scripts ,bootstrap-scripts
                     #:configure-flags ,configure-flags
                     #:make-flags ,make-flags
                     #:out-of-source? ,out-of-source?
@@ -577,6 +593,7 @@ platform."
                     #:patch-shebangs? ,patch-shebangs?
                     #:strip-binaries? ,strip-binaries?
                     #:validate-runpath? ,validate-runpath?
+                    #:make-dynamic-linker-cache? ,make-dynamic-linker-cache?
                     #:license-file-regexp ,license-file-regexp
                     #:strip-flags ,strip-flags
                     #:strip-directories ,strip-directories))))

@@ -79,7 +79,7 @@
        ("freetype" ,freetype)
        ("popt" ,popt)
        ("potrace" ,potrace)
-       ("python" ,python-2)
+       ("python" ,python-wrapper)
        ("lcms" ,lcms)
        ("boost" ,boost)))
     (native-inputs
@@ -258,7 +258,7 @@ endif()~%~%"
            (lambda* (#:key outputs #:allow-other-keys)
              (let ((out (assoc-ref outputs "out")))
                (wrap-program (string-append out "/bin/inkscape")
-                 `("PYTHONPATH" ":" prefix (,(getenv "PYTHONPATH")))))
+                 `("GUIX_PYTHONPATH" ":" prefix (,(getenv "GUIX_PYTHONPATH")))))
              #t)))))
     (inputs
      `(("aspell" ,aspell)

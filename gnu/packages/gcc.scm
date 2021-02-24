@@ -326,8 +326,7 @@ where the OS part is overloaded to denote a specific ABI---into GCC
                   ;; but there's nothing useful to look for here.)
                   (substitute* "gcc/config.in"
                     (("PREFIX_INCLUDE_DIR")
-                     "PREFIX_INCLUDE_DIR_isnt_necessary_here"))
-                  #t)))
+                     "PREFIX_INCLUDE_DIR_isnt_necessary_here")))))
 
             (add-after 'configure 'post-configure
               (lambda _
@@ -335,8 +334,7 @@ where the OS part is overloaded to denote a specific ABI---into GCC
                 ;; build-time dependencies---e.g., `--with-ppl=/gnu/store/xxx'.
                 (substitute* "Makefile"
                   (("^TOPLEVEL_CONFIGURE_ARGUMENTS=(.*)$" _ rest)
-                   "TOPLEVEL_CONFIGURE_ARGUMENTS=\n"))
-                #t)))))
+                   "TOPLEVEL_CONFIGURE_ARGUMENTS=\n")))))))
 
        (native-search-paths
         ;; Use the language-specific variables rather than 'CPATH' because they
@@ -384,15 +382,13 @@ Go.  It also includes runtime support libraries for these languages.")
               ;; This is required for building with glibc-2.26.
               ;; https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81712
               (snippet
-               '(begin
-                  (for-each
-                   (lambda (dir)
-                     (substitute* (string-append "libgcc/config/"
-                                                 dir "/linux-unwind.h")
-                       (("struct ucontext") "ucontext_t")))
-                   '("aarch64" "alpha" "bfin" "i386" "m68k"
-                     "pa" "sh" "tilepro" "xtensa"))
-                  #t))))
+               '(for-each
+                 (lambda (dir)
+                   (substitute* (string-append "libgcc/config/"
+                                               dir "/linux-unwind.h")
+                     (("struct ucontext") "ucontext_t")))
+                 '("aarch64" "alpha" "bfin" "i386" "m68k"
+                   "pa" "sh" "tilepro" "xtensa")))))
     (supported-systems %supported-systems)
     (inputs
      `(("isl" ,isl-0.11)
@@ -420,15 +416,13 @@ Go.  It also includes runtime support libraries for these languages.")
               ;; This is required for building with glibc-2.26.
               ;; https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81712
               (snippet
-               '(begin
-                  (for-each
-                   (lambda (dir)
-                     (substitute* (string-append "libgcc/config/"
-                                                 dir "/linux-unwind.h")
-                       (("struct ucontext") "ucontext_t")))
-                   '("aarch64" "alpha" "bfin" "i386" "m68k" "nios2"
-                     "pa" "sh" "tilepro" "xtensa"))
-                  #t))))
+               '(for-each
+                 (lambda (dir)
+                   (substitute* (string-append "libgcc/config/"
+                                               dir "/linux-unwind.h")
+                     (("struct ucontext") "ucontext_t")))
+                 '("aarch64" "alpha" "bfin" "i386" "m68k" "nios2"
+                   "pa" "sh" "tilepro" "xtensa")))))
     ;; Override inherited texinfo-5 with latest version.
     (native-inputs `(("perl" ,perl)   ;for manpages
                      ("texinfo" ,texinfo)))
@@ -456,8 +450,7 @@ Go.  It also includes runtime support libraries for these languages.")
                                           ":"))
                      (format #t
                              "environment variable `CPLUS_INCLUDE_PATH' changed to ~a~%"
-                             (getenv "CPLUS_INCLUDE_PATH"))
-                     #t))))))))))
+                             (getenv "CPLUS_INCLUDE_PATH"))))))))))))
 
 (define-public gcc-5
   ;; Note: GCC >= 5 ships with .info files but 'make install' fails to install
@@ -489,11 +482,9 @@ Go.  It also includes runtime support libraries for these languages.")
                ;;
                ;;   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=67590
                ;;   http://cgit.openembedded.org/openembedded-core/commit/?id=f6e47aa9b12f9ab61530c40e0343f451699d9077
-               '(begin
-                  (substitute* "libcc1/configure"
-                    (("\\$gcc_cv_objdump -T")
-                     "$OBJDUMP_FOR_TARGET -T"))
-                  #t))))
+               '(substitute* "libcc1/configure"
+                  (("\\$gcc_cv_objdump -T")
+                   "$OBJDUMP_FOR_TARGET -T")))))
     (inputs
      `(;; GCC5 needs <isl/band.h> which is removed in later versions.
        ("isl" ,isl-0.18)
@@ -666,16 +657,14 @@ using compilers other than GCC."
        (modify-phases %standard-phases
          (add-before 'configure 'chdir
            (lambda _
-             (chdir "libiberty")
-             #t))
+             (chdir "libiberty")))
          (replace 'install
            (lambda* (#:key outputs #:allow-other-keys)
              (let* ((out     (assoc-ref outputs "out"))
                     (lib     (string-append out "/lib/"))
                     (include (string-append out "/include/")))
                (install-file "libiberty.a" lib)
-               (install-file "../include/libiberty.h" include))
-             #t)))))
+               (install-file "../include/libiberty.h" include)))))))
     (inputs '())
     (outputs '("out"))
     (native-inputs '())
@@ -717,8 +706,7 @@ as the 'native-search-paths' field."
              (lambda* (#:key outputs #:allow-other-keys)
                (for-each delete-file
                          (find-files (string-append (assoc-ref outputs "out") "/bin")
-                                     ".*(c\\+\\+|cpp|g\\+\\+|gcov|gcc|gcc-.*)"))
-               #t))))))))
+                                     ".*(c\\+\\+|cpp|g\\+\\+|gcov|gcc|gcc-.*)"))))))))))
 
 (define %generic-search-paths
   ;; This is the language-neutral search path for GCC.  Entries in $CPATH are
@@ -772,8 +760,7 @@ as the 'native-search-paths' field."
              (lambda* (#:key outputs #:allow-other-keys)
                (for-each delete-file
                          (find-files (string-append (assoc-ref outputs "out") "/bin")
-                                     ".*(c\\+\\+|cpp|g\\+\\+|gcov|gcc|gcc-.*)"))
-               #t))))))
+                                     ".*(c\\+\\+|cpp|g\\+\\+|gcov|gcc|gcc-.*)"))))))))
     (synopsis "GCC library generating machine code on-the-fly at runtime")
     (description
      "This package is part of the GNU Compiler Collection and provides an
@@ -906,8 +893,7 @@ provides the GNU compiler for the Go programming language."))
        #:phases (modify-phases %standard-phases
                   (add-before 'configure 'chdir
                               (lambda _
-                                (chdir "libstdc++-v3")
-                                #t))
+                                (chdir "libstdc++-v3")))
                   (add-before 'configure 'set-xsl-directory
                               (lambda* (#:key inputs #:allow-other-keys)
                                 (let ((docbook (assoc-ref inputs "docbook-xsl")))
@@ -916,8 +902,7 @@ provides the GNU compiler for the Go programming language."))
                                     (("@XSL_STYLE_DIR@")
                                      (string-append
                                       docbook "/xml/xsl/"
-                                      (strip-store-file-name docbook))))
-                                  #t)))
+                                      (strip-store-file-name docbook)))))))
                   (replace 'build
                            (lambda _
                              ;; XXX: There's also a 'doc-info' target, but it
@@ -944,7 +929,7 @@ provides the GNU compiler for the Go programming language."))
 (define-public isl
   (package
     (name "isl")
-    (version "0.22.1")
+    (version "0.23")
     (source (origin
              (method url-fetch)
              (uri (list (string-append
@@ -955,7 +940,7 @@ provides the GNU compiler for the Go programming language."))
                                        name "-" version ".tar.bz2")))
              (sha256
               (base32
-               "1kf54jib0nind1pvakblnfhimmwzm0y1llz8470ag0di5vwqwrhs"))))
+               "0k91zck10zxs9sk3yrbb92y1j3w981w3fbwkfwd7kl779b0j52f5"))))
     (build-system gnu-build-system)
     (outputs '("out" "static"))
     (arguments
@@ -974,8 +959,7 @@ provides the GNU compiler for the Go programming language."))
                         ;; libtool looks for it in the usual locations.
                         (substitute* (string-append out "/lib/libisl.la")
                           (("^old_library=.*")
-                           "old_library=''\n"))
-                        #t))))))
+                           "old_library=''\n"))))))))
     (inputs `(("gmp" ,gmp)))
     (home-page "http://isl.gforge.inria.fr/")
     (synopsis
@@ -1101,8 +1085,7 @@ effective code.")
                                            (copy-file file
                                                       (string-append html "/"
                                                                      file)))
-                                         (find-files "." "\\.html$"))
-                               #t))))))
+                                         (find-files "." "\\.html$"))))))))
     (synopsis "Reference manual for the C programming language")
     (description
      "This is a reference manual for the C programming language, as

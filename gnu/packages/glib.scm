@@ -1,5 +1,5 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2013, 2014, 2015, 2016, 2019 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2013, 2014, 2015, 2016, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2013, 2015 Andreas Enge <andreas@enge.fr>
 ;;; Copyright © 2013 Nikita Karetnikov <nikita@karetnikov.org>
 ;;; Copyright © 2014, 2015, 2016, 2017, 2018 Mark H Weaver <mhw@netris.org>
@@ -9,10 +9,12 @@
 ;;; Copyright © 2017 Petter <petter@mykolab.ch>
 ;;; Copyright © 2018, 2019 Tobias Geerinckx-Rice <me@tobias.gr>
 ;;; Copyright © 2018 Alex Vong <alexvong1995@gmail.com>
-;;; Copyright © 2019 Maxim Cournoyer <maxim.cournoyer@gmail.com>
+;;; Copyright © 2019, 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;; Copyright © 2019 Giacomo Leidi <goodoldpaul@autistici.org>
 ;;; Copyright © 2019, 2020 Marius Bakke <mbakke@fastmail.com>
 ;;; Copyright © 2020 Nicolò Balzarotti <nicolo@nixo.xyz>
+;;; Copyright © 2020 Florian Pelz <pelzflorian@pelzflorian.de>
+;;; Copyright © 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
 ;;; Copyright © 2020 Arthur Margerit <ruhtra.mar@gmail.com>
 ;;;
 ;;; This file is part of GNU Guix.
@@ -58,7 +60,6 @@
   #:use-module (gnu packages pkg-config)
   #:use-module (gnu packages python)
   #:use-module (gnu packages python-xyz)
-  #:use-module (gnu packages selinux)
   #:use-module (gnu packages web)
   #:use-module (gnu packages xml)
   #:use-module (gnu packages xorg)
@@ -90,8 +91,7 @@
 (define dbus
   (package
     (name "dbus")
-    (version "1.12.16")
-    (replacement dbus/fixed)
+    (version "1.12.20")
     (source (origin
               (method url-fetch)
               (uri (string-append
@@ -99,7 +99,7 @@
                     version ".tar.gz"))
               (sha256
                (base32
-                "107ckxaff1cv4q6kmfdi2fb1nlsv03312a7kf6lb4biglhpjv8jl"))
+                "1zp5gpx61v1cpqf2zwb1cidhp9xylvw49d3zydkxqk6b1qa20xpp"))
               (patches (search-patches "dbus-helper-search-path.patch"))))
     (build-system gnu-build-system)
     (arguments
@@ -168,20 +168,10 @@ or through unencrypted TCP/IP suitable for use behind a firewall with
 shared NFS home directories.")
     (license license:gpl2+)))                     ; or Academic Free License 2.1
 
-;; Replacement package to fix CVE-2020-12049.
-(define dbus/fixed
-  (package
-    (inherit dbus)
-    (source (origin
-              (inherit (package-source dbus))
-              (patches (append (search-patches "dbus-CVE-2020-12049.patch")
-                               (origin-patches (package-source dbus))))))))
-
 (define glib
   (package
    (name "glib")
    (version "2.62.6")
-   (replacement glib-with-gio-patch)
    (source (origin
             (method url-fetch)
             (uri (string-append "mirror://gnome/sources/"
@@ -190,7 +180,8 @@ shared NFS home directories.")
             (sha256
              (base32
               "174bsmbmcvaw69ff9g60q5sx0fn23rkhqcwqz17h5s7sprps4kqh"))
-            (patches (search-patches "glib-tests-timer.patch"))
+            (patches (search-patches "glib-appinfo-watch.patch"
+                                     "glib-tests-timer.patch"))
             (modules '((guix build utils)))
             (snippet
              '(begin
@@ -199,24 +190,25 @@ shared NFS home directories.")
                 #t))))
    (build-system meson-build-system)
    (outputs '("out"           ; everything
-              "bin"))         ; glib-mkenums, gtester, etc.; depends on Python
+              "bin"           ; glib-mkenums, gtester, etc.; depends on Python
+              "debug"))
    (propagated-inputs
     `(("pcre" ,pcre)  ; in the Requires.private field of glib-2.0.pc
       ("libffi" ,libffi) ; in the Requires.private field of gobject-2.0.pc
       ;; These are in the Requires.private field of gio-2.0.pc
       ("util-linux" ,util-linux "lib")  ;for libmount
-      ("libselinux" ,libselinux)
       ("zlib" ,zlib)))
    (native-inputs
     `(("gettext" ,gettext-minimal)
       ("m4" ,m4) ; for installing m4 macros
       ("dbus" ,dbus)                              ; for GDBus tests
       ("pkg-config" ,pkg-config)
-      ("python" ,python-wrapper)
+      ("python" ,python-minimal-wrapper)
       ("perl" ,perl)                              ; needed by GIO tests
       ("tzdata" ,tzdata-for-tests)))                  ; for tests/gdatetime.c
    (arguments
     `(#:disallowed-references (,tzdata-for-tests)
+      #:configure-flags '("-Dselinux=disabled")
       #:phases
       (modify-phases %standard-phases
         (add-after 'unpack 'patch-dbus-launch-path
@@ -236,6 +228,17 @@ shared NFS home directories.")
                (("gio-launch-desktop")
                 (string-append out "/libexec/gio-launch-desktop")))
               #t)))
+        ;; TODO: Remove the conditional in the next core-updates cycle.
+        ;; Needed to build glib on slower ARM nodes.
+        ,@(if (string-prefix? "arm" (%current-system))
+              `((add-after 'unpack 'increase-test-timeout
+                  (lambda _
+                    (substitute* "meson.build"
+                      (("test_timeout = 60")
+                       "test_timeout = 90")
+                      (("test_timeout_slow = 120")
+                       "test_timeout_slow = 180")))))
+              '())
         (add-before 'build 'pre-build
           (lambda* (#:key inputs outputs #:allow-other-keys)
             ;; For tests/gdatetime.c.
@@ -329,11 +332,14 @@ shared NFS home directories.")
               (for-each (lambda (x) (apply disable x)) failing-tests)
               #t)))
         (replace 'check
-          (lambda _
-            (setenv "MESON_TESTTHREADS"
-                    (number->string (parallel-job-count)))
-            ;; Do not run tests marked as "flaky".
-            (invoke "meson" "test" "--no-suite" "flaky")))
+          (lambda* (#:key tests? #:allow-other-keys)
+            (if tests?
+                (begin
+                  (setenv "MESON_TESTTHREADS"
+                          (number->string (parallel-job-count)))
+                  ;; Do not run tests marked as "flaky".
+                  (invoke "meson" "test" "--no-suite" "flaky"))
+                #t)))
         ;; TODO: meson does not permit the bindir to be outside of prefix.
         ;; See https://github.com/mesonbuild/meson/issues/2561
         ;; We can remove this once meson is patched.
@@ -388,16 +394,6 @@ dynamic loading, and an object system.")
    (home-page "https://developer.gnome.org/glib/")
    (license license:lgpl2.1+)))
 
-(define glib-with-gio-patch
-  ;; GLib with a fix for <https://bugs.gnu.org/35594>.
-  ;; TODO: Fold into 'glib' above in the next rebuild cycle.
-  (package
-    (inherit glib)
-    (source (origin
-              (inherit (package-source glib))
-              (patches (cons (search-patch "glib-appinfo-watch.patch")
-                             (origin-patches (package-source glib))))))))
-
 (define-public glib-with-documentation
   ;; glib's doc must be built in a separate package since it requires gtk-doc,
   ;; which in turn depends on glib.
@@ -428,21 +424,18 @@ dynamic loading, and an object system.")
 (define gobject-introspection
   (package
     (name "gobject-introspection")
-    (version "1.62.0")
-    (source
-     (origin
-       (method url-fetch)
-       (uri
-        (string-append "mirror://gnome/sources/"
-                       "gobject-introspection/" (version-major+minor version)
-                       "/gobject-introspection-" version ".tar.xz"))
-       (sha256
-        (base32 "18lhglg9v6y83lhqzyifc1z0wrlawzrhzzxx0a3h1g7xaz97xvmi"))
-       (patches
-        (search-patches
-         "gobject-introspection-cc.patch"
-         "gobject-introspection-girepository.patch"
-         "gobject-introspection-absolute-shlib-path.patch"))))
+    (version "1.66.1")
+    (source (origin
+             (method url-fetch)
+             (uri (string-append "mirror://gnome/sources/"
+                   "gobject-introspection/" (version-major+minor version)
+                   "/gobject-introspection-" version ".tar.xz"))
+             (sha256
+              (base32 "078n0q7b6z682mf4irclrksm73cyixq295mqnqifl9plwmgaai6x"))
+             (patches (search-patches
+                       "gobject-introspection-cc.patch"
+                       "gobject-introspection-girepository.patch"
+                       "gobject-introspection-absolute-shlib-path.patch"))))
     (build-system meson-build-system)
     (arguments
      `(#:phases
@@ -560,7 +553,7 @@ The intltool collection can be used to do these things:
              (let ((prog (string-append (assoc-ref outputs "out")
                                         "/bin/itstool")))
                (wrap-program prog
-                 `("PYTHONPATH" = (,(getenv "PYTHONPATH"))))
+                 `("GUIX_PYTHONPATH" = (,(getenv "GUIX_PYTHONPATH"))))
                #t))))))
     (home-page "http://www.itstool.org")
     (synopsis "Tool to translate XML documents with PO files")

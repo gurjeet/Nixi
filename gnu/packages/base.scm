@@ -1,11 +1,11 @@
 ;;; GNU Guix --- Functional package management for GNU
-;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2014, 2019 Andreas Enge <andreas@enge.fr>
 ;;; Copyright © 2012 Nikita Karetnikov <nikita@karetnikov.org>
 ;;; Copyright © 2014, 2015, 2016, 2018 Mark H Weaver <mhw@netris.org>
 ;;; Copyright © 2014 Alex Kost <alezost@gmail.com>
 ;;; Copyright © 2014, 2015 Manolis Fragkiskos Ragkousis <manolis837@gmail.com>
-;;; Copyright © 2016, 2017, 2019, 2020 Efraim Flashner <efraim@flashner.co.il>
+;;; Copyright © 2016, 2017, 2019, 2020, 2021 Efraim Flashner <efraim@flashner.co.il>
 ;;; Copyright © 2016, 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
 ;;; Copyright © 2016, 2018 Alex Vong <alexvong1995@gmail.com>
 ;;; Copyright © 2017 Rene Saavedra <rennes@openmailbox.org>
@@ -39,6 +39,7 @@
   #:use-module (gnu packages)
   #:use-module (gnu packages acl)
   #:use-module (gnu packages algebra)
+  #:use-module (gnu packages attr)
   #:use-module (gnu packages bash)
   #:use-module (gnu packages bison)
   #:use-module (gnu packages ed)
@@ -98,14 +99,14 @@ command-line arguments, multiple languages, and so on.")
 (define-public grep
   (package
    (name "grep")
-   (version "3.4")
+   (version "3.6")
    (source (origin
             (method url-fetch)
             (uri (string-append "mirror://gnu/grep/grep-"
                                 version ".tar.xz"))
             (sha256
              (base32
-              "1yy33kiwrxrwj2nxa4fg15bvmwyghqbs8qwkdvy5phm784f7brjq"))
+              "0gipv6bzkm1aihj0ncqpyh164xrzgcxcv9r1kwzyk2g1mzl1azk6"))
             (patches (search-patches "grep-timing-sensitive-test.patch"))))
    (build-system gnu-build-system)
    (native-inputs `(("perl" ,perl)))             ;some of the tests require it
@@ -122,8 +123,7 @@ command-line arguments, multiple languages, and so on.")
               (substitute* (list (string-append bin "/egrep")
                                  (string-append bin "/fgrep"))
                 (("^exec grep")
-                 (string-append "exec " bin "/grep")))
-              #t))))))
+                 (string-append "exec " bin "/grep")))))))))
    (synopsis "Print lines matching a pattern")
    (description
      "grep is a tool for finding text inside files.  Text is found by
@@ -175,14 +175,14 @@ implementation offers several extensions over the standard utility.")
 (define-public tar
   (package
    (name "tar")
-   (version "1.32")
+   (version "1.34")
    (source (origin
             (method url-fetch)
             (uri (string-append "mirror://gnu/tar/tar-"
                                 version ".tar.xz"))
             (sha256
              (base32
-              "1n7xy657ii0sa42zx6944v2m4v9qrh6sqgmw17l3nch3y43sxlyh"))
+              "0a0x87anh9chbi2cgcyy7pmnm5hzk4yd1w2j8gm1wplwhwkbvgk3"))
             (patches (search-patches "tar-skip-unreliable-tests.patch"
                                      "tar-remove-wholesparse-check.patch"))))
    (build-system gnu-build-system)
@@ -210,8 +210,7 @@ implementation offers several extensions over the standard utility.")
                      (let ((bash (assoc-ref inputs "bash")))
                        (substitute* "src/system.c"
                          (("/bin/sh")
-                          (string-append bash "/bin/sh")))
-                       #t))))))
+                          (string-append bash "/bin/sh")))))))))
 
    ;; When cross-compiling, the 'set-shell-file-name' phase needs to be able
    ;; to refer to the target Bash.
@@ -286,16 +285,15 @@ interactive means to merge two files.")
 (define-public findutils
   (package
    (name "findutils")
-   (version "4.7.0")
+   (version "4.8.0")
    (source (origin
             (method url-fetch)
             (uri (string-append "mirror://gnu/findutils/findutils-"
                                 version ".tar.xz"))
             (sha256
              (base32
-              "16kqz9yz98dasmj70jwf5py7jk558w96w0vgp3zf9xsqk3gzpzn5"))
-            (patches (search-patches "findutils-localstatedir.patch"
-                                     "findutils-test-rwlock-threads.patch"))))
+              "0r3i72hnw0a30khlczi9k2c51aamaj6kfmp5mk3844nrjxz7n4jp"))
+            (patches (search-patches "findutils-localstatedir.patch"))))
    (build-system gnu-build-system)
    (arguments
     `(#:configure-flags (list
@@ -307,8 +305,7 @@ interactive means to merge two files.")
                      (substitute* '("tests/xargs/verbose-quote.sh"
                                     "tests/find/exec-plus-last-file.sh")
                        (("#!/bin/sh")
-                        (string-append "#!" (which "sh"))))
-                     #t)))))
+                        (string-append "#!" (which "sh")))))))))
    (synopsis "Operating on files matching given criteria")
    (description
     "Findutils supplies the basic file directory searching utilities of the
@@ -334,6 +331,7 @@ used to apply commands with arbitrarily long arguments.")
             (patches (search-patches "coreutils-ls.patch"))))
    (build-system gnu-build-system)
    (inputs `(("acl"  ,acl)                        ; TODO: add SELinux
+             ("attr" ,attr)                       ;for xattrs in ls, mv, etc
              ("gmp"  ,gmp)                        ;bignums in 'expr', yay!
 
              ;; Do not use libcap when cross-compiling since it's not quite
@@ -379,15 +377,13 @@ used to apply commands with arbitrarily long arguments.")
                      (substitute* (find-files "gnulib-tests" "\\.c$")
                        (("/bin/sh") (which "sh")))
                      (substitute* (find-files "tests" "\\.sh$")
-                       (("#!/bin/sh") (string-append "#!" (which "sh"))))
-                     #t))
+                       (("#!/bin/sh") (string-append "#!" (which "sh"))))))
                  ,@(if (hurd-target?)
                        `((add-after 'unpack 'remove-tests
                            (lambda _
                              (substitute* "Makefile.in"
                                ;; this test hangs
-                               (("^ *tests/misc/timeout-group.sh.*") ""))
-                             #t)))
+                               (("^ *tests/misc/timeout-group.sh.*") "")))))
                        '()))))
    (synopsis "Core GNU utilities (file, text, shell)")
    (description
@@ -432,8 +428,7 @@ standard.")
                 ;; specific issue, but "env-S.pl" is not adjusted for build
                 ;; environments with long prefixes (/tmp/guix-build-...).
                 (substitute* "Makefile"
-                  (("^.*tests/misc/env-S.pl.*$") ""))
-                #t)))))))))
+                  (("^.*tests/misc/env-S.pl.*$") "")))))))))))
 
 (define-public gnu-make
   (package
@@ -465,8 +460,7 @@ standard.")
               (substitute* "src/job.c"
                 (("default_shell =.*$")
                  (format #f "default_shell = \"~a/bin/sh\";\n"
-                         bash)))
-              #t))))))
+                         bash)))))))))
    (synopsis "Remake files automatically")
    (description
     "Make is a program that is used to control the production of
@@ -500,20 +494,19 @@ change.  GNU make offers many powerful extensions over the standard utility.")
                (substitute* "job.c"
                  (("default_shell =.*$")
                   (format #f "default_shell = \"~a/bin/sh\";\n"
-                          bash)))
-               #t))))))))
+                          bash)))))))))))
 
 (define-public binutils
   (package
    (name "binutils")
-   (version "2.34")
+   (version "2.36.1")
    (source (origin
             (method url-fetch)
             (uri (string-append "mirror://gnu/binutils/binutils-"
                                 version ".tar.bz2"))
             (sha256
              (base32
-              "1rin1f5c7wm4n3piky6xilcrpf2s0n3dd5vqq8irrxkcic3i1w49"))
+              "18ypqr5y48vxqg9mkz1c47798jp1xb1d4vfpmfq8vkihkvkx4jsv"))
             (patches (search-patches "binutils-loongson-workaround.patch"))))
    (build-system gnu-build-system)
 
@@ -538,17 +531,7 @@ change.  GNU make offers many powerful extensions over the standard utility.")
 
                           ;; Make sure 'ar' and 'ranlib' produce archives in a
                           ;; deterministic fashion.
-                          "--enable-deterministic-archives")
-
-      ;; XXX: binutils 2.34 was mistakenly released without generated manuals:
-      ;; <https://sourceware.org/bugzilla/show_bug.cgi?id=25491>.  To avoid a
-      ;; circular dependency on texinfo, prevent the build system from creating
-      ;; the manuals by calling "true" instead of "makeinfo"...
-      #:make-flags '("MAKEINFO=true")))
-
-   ;; ...and "hide" this package so that users who install binutils get the
-   ;; version with documentation defined below.
-   (properties '((hidden? . #t)))
+                          "--enable-deterministic-archives")))
 
    (synopsis "Binary utilities: bfd gas gprof ld")
    (description
@@ -560,18 +543,6 @@ the strings in a binary file, and utilities for working with archives.  The
 included.")
    (license gpl3+)
    (home-page "https://www.gnu.org/software/binutils/")))
-
-;; Work around a problem with binutils 2.34 whereby manuals are missing from
-;; the release tarball.  Remove this and the related code above when updating.
-(define-public binutils+documentation
-  (package/inherit
-   binutils
-   (native-inputs
-    `(("texinfo" ,texinfo)))
-   (arguments
-    (substitute-keyword-arguments (package-arguments binutils)
-      ((#:make-flags _ ''()) ''())))
-   (properties '())))
 
 ;; FIXME: ath9k-firmware-htc-binutils.patch do not apply on 2.34 because of a
 ;; big refactoring of xtensa-modules.c (commit 567607c11fbf7105 upstream).
@@ -593,7 +564,7 @@ included.")
    (properties '())))
 
 (define-public binutils-gold
-  (package/inherit binutils+documentation
+  (package/inherit binutils
     (name "binutils-gold")
     (arguments
      `(#:phases
@@ -601,8 +572,7 @@ included.")
          (add-after 'patch-source-shebangs 'patch-more-shebangs
            (lambda _
              (substitute* "gold/Makefile.in"
-               (("/bin/sh") (which "sh")))
-             #t)))
+               (("/bin/sh") (which "sh"))))))
        ,@(substitute-keyword-arguments (package-arguments binutils)
          ; Upstream is aware of unrelocatable test failures on arm*.
          ((#:tests? _ #f)
@@ -701,25 +671,16 @@ the store.")
   ;; version 2.28, GNU/Hurd used a different glibc branch.
   (package
    (name "glibc")
-   (version "2.31")
+   (version "2.32")
    (source (origin
             (method url-fetch)
             (uri (string-append "mirror://gnu/glibc/glibc-" version ".tar.xz"))
             (sha256
              (base32
-              "05zxkyz9bv3j9h0xyid1rhvh3klhsmrpkf3bcs6frvlgyr2gwilj"))
-            (snippet
-             ;; Disable 'ldconfig' and /etc/ld.so.cache.  The latter is
-             ;; required on LFS distros to avoid loading the distro's libc.so
-             ;; instead of ours.
-             '(begin
-                (substitute* "sysdeps/unix/sysv/linux/configure"
-                  (("use_ldconfig=yes")
-                   "use_ldconfig=no"))
-                #t))
-            (modules '((guix build utils)))
+              "0di848ibffrnwq7g2dvgqrnn4xqhj3h96csn69q4da51ymafl9qn"))
             (patches (search-patches "glibc-ldd-x86_64.patch"
                                      "glibc-ldd-powerpc.patch"
+                                     "glibc-dl-cache.patch"
                                      "glibc-hidden-visibility-ldconfig.patch"
                                      "glibc-versioned-locpath.patch"
                                      "glibc-allow-kernel-2.6.32.patch"
@@ -727,7 +688,9 @@ the store.")
                                      "glibc-supported-locales.patch"
                                      "glibc-hurd-clock_t_centiseconds.patch"
                                      "glibc-hurd-clock_gettime_monotonic.patch"
-                                     "glibc-hurd-signal-sa-siginfo.patch"))))
+                                     "glibc-hurd-signal-sa-siginfo.patch"
+                                     "glibc-hurd-mach-print.patch"
+                                     "glibc-hurd-gettyent.patch"))))
    (build-system gnu-build-system)
 
    ;; Glibc's <limits.h> refers to <linux/limit.h>, for instance, so glibc
@@ -800,6 +763,11 @@ the store.")
                   '("--disable-werror")
                   '()))
 
+      ;; Arrange so that /etc/rpc & co. go to $out/etc.
+      #:make-flags (list (string-append "sysconfdir="
+                                        (assoc-ref %outputs "out")
+                                        "/etc"))
+
       #:tests? #f                                 ; XXX
       #:phases (modify-phases %standard-phases
                  (add-before
@@ -826,6 +794,11 @@ the store.")
                         ;; linking against libgcc_s is not needed with GCC
                         ;; 4.7.1.
                         ((" -lgcc_s") ""))
+
+                      ;; Tell the ld.so cache code where the store is.
+                      (substitute* "elf/dl-cache.c"
+                        (("@STORE_DIRECTORY@")
+                         (string-append "\"" (%store-directory) "\"")))
 
                       ;; Have `system' use that Bash.
                       (substitute* "sysdeps/posix/system.c"
@@ -862,9 +835,7 @@ the store.")
                          ;; "bilingual" eval/exec magic at the top of the file.
                          "")
                         (("exec @PERL@")
-                         "exec perl"))
-
-                      #t)))
+                         "exec perl")))))
 
                  (add-after 'install 'move-static-libs
                    (lambda* (#:key outputs #:allow-other-keys)
@@ -902,8 +873,7 @@ the store.")
                                      ((out) static)))
                                  (filter linker-script?
                                          (map (cut string-append slib "/" <>)
-                                              files)))
-                       #t)))
+                                              files))))))
 
                  ,@(if (hurd-target?)
                        '((add-after 'install 'augment-libc.so
@@ -912,8 +882,7 @@ the store.")
                                (substitute* (string-append out "/lib/libc.so")
                                  (("/[^ ]+/lib/libc.so.0.3")
                                   (string-append out "/lib/libc.so.0.3"
-                                                 " libmachuser.so libhurduser.so"))))
-                             #t)))
+                                                 " libmachuser.so libhurduser.so")))))))
                        '()))))
 
    (inputs `(("static-bash" ,static-bash)))
@@ -953,6 +922,17 @@ with the Linux kernel.")
 
 ;; Below are old libc versions, which we use mostly to build locale data in
 ;; the old format (which the new libc cannot cope with.)
+
+(define-public glibc-2.31
+  (package
+    (inherit glibc)
+    (version "2.31")
+    (source (origin
+              (inherit (package-source glibc))
+              (uri (string-append "mirror://gnu/glibc/glibc-" version ".tar.xz"))
+              (sha256
+               (base32
+                "05zxkyz9bv3j9h0xyid1rhvh3klhsmrpkf3bcs6frvlgyr2gwilj"))))))
 
 (define-public glibc-2.30
   (package
@@ -1115,8 +1095,7 @@ to the @code{share/locale} sub-directory of this package.")
                                             (string-append (dirname directory)
                                                            "/" name "."
                                                            normalized)))))
-                             locales)
-                   #t)))
+                             locales))))
              (delete 'install)
              (delete 'move-static-libs)))
          ((#:configure-flags flags)
@@ -1256,14 +1235,13 @@ command.")
                (let ((out (assoc-ref outputs "out")))
                  (close-port
                   (open-output-file
-                   (string-append out "/include/gnu/stubs.h"))))
-               #t))
+                   (string-append out "/include/gnu/stubs.h"))))))
            (delete 'build)))))))                  ; nothing to build
 
 (define-public tzdata
   (package
     (name "tzdata")
-    (version "2020d")
+    (version "2020f")
     (source (origin
              (method url-fetch)
              (uri (string-append
@@ -1271,7 +1249,7 @@ command.")
                    version ".tar.gz"))
              (sha256
               (base32
-               "1wxskk9mh1x2073n99qna2mq58mgi648mbq5dxlqfcrnvrbkk0cd"))))
+               "10b8cr55x6ji14n3kqkn3avj1s9b79b8gszh81fxrrisij8k248j"))))
     (build-system gnu-build-system)
     (arguments
      `(#:tests? #f
@@ -1321,8 +1299,7 @@ command.")
                (copy-recursively (string-append out "/share/zoneinfo-leaps")
                                  (string-append out "/share/zoneinfo/right"))
                (delete-file-recursively
-                (string-append out "/share/zoneinfo-leaps"))
-               #t)))
+                (string-append out "/share/zoneinfo-leaps")))))
          (delete 'configure))))
     (inputs `(("tzcode" ,(origin
                           (method url-fetch)
@@ -1331,7 +1308,7 @@ command.")
                                 version ".tar.gz"))
                           (sha256
                            (base32
-                            "1mgsckixmmk9qxzsflfxnp3999qi3ls72bgksclk01g852x51w3c"))))))
+                            "1i998crd9fxdfhv4jd241j1arx0ng7j7cvczpmj4y5j5fwmfmvng"))))))
     (home-page "https://www.iana.org/time-zones")
     (synopsis "Database of current and historical time zones")
     (description "The Time Zone Database (often called tz or zoneinfo)
@@ -1350,7 +1327,7 @@ and daylight-saving rules.")
   (hidden-package
    (package
      (inherit tzdata)
-     (version "2019c")
+     (version "2020d")
      (source (origin
                (method url-fetch)
                (uri (string-append
@@ -1358,7 +1335,7 @@ and daylight-saving rules.")
                      version ".tar.gz"))
                (sha256
                 (base32
-                 "0z7w1yv37cfk8yhix2cillam091vgp1j4g8fv84261q9mdnq1ivr"))))
+                 "1wxskk9mh1x2073n99qna2mq58mgi648mbq5dxlqfcrnvrbkk0cd"))))
      (inputs
       `(("tzcode" ,(origin
                      (method url-fetch)
@@ -1367,7 +1344,7 @@ and daylight-saving rules.")
                            version ".tar.gz"))
                      (sha256
                       (base32
-                       "1m3y2rnf1nggxxhxplab5zdd5whvar3ijyrv7lifvm82irkd7szn")))))))))
+                       "1mgsckixmmk9qxzsflfxnp3999qi3ls72bgksclk01g852x51w3c")))))))))
 
 (define-public libiconv
   (package
@@ -1384,11 +1361,9 @@ and daylight-saving rules.")
               (snippet
                ;; Work around "declared gets" error on glibc systems (fixed by
                ;; Gnulib commit 66712c23388e93e5c518ebc8515140fa0c807348.)
-               '(begin
-                  (substitute* "srclib/stdio.in.h"
-                    (("^#undef gets") "")
-                    (("^_GL_WARN_ON_USE \\(gets.*") ""))
-                  #t))))
+               '(substitute* "srclib/stdio.in.h"
+                  (("^#undef gets") "")
+                  (("^_GL_WARN_ON_USE \\(gets.*") "")))))
     (build-system gnu-build-system)
     (synopsis "Character set conversion library")
     (description

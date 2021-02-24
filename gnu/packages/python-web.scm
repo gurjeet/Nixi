@@ -26,7 +26,7 @@
 ;;; Copyright © 2018 Tomáš Čech <sleep_walker@gnu.org>
 ;;; Copyright © 2018, 2019 Nicolas Goaziou <mail@nicolasgoaziou.fr>
 ;;; Copyright © 2018 Mathieu Othacehe <m.othacehe@gmail.com>
-;;; Copyright © 2018, 2020 Maxim Cournoyer <maxim.cournoyer@gmail.com>
+;;; Copyright © 2018, 2020, 2021 Maxim Cournoyer <maxim.cournoyer@gmail.com>
 ;;; Copyright © 2019 Vagrant Cascadian <vagrant@debian.org>
 ;;; Copyright © 2019 Brendan Tildesley <mail@brendan.scot>
 ;;; Copyright © 2019 Pierre Langlois <pierre.langlois@gmx.com>
@@ -122,12 +122,9 @@
                 (string-append "@pytest.mark.xfail\n" all)))
 
              ;; Don't test the aiohttp pytest plugin to avoid a dependency loop.
-             (delete-file "tests/test_pytest_plugin.py")
-             #t))
+             (delete-file "tests/test_pytest_plugin.py")))
          (replace 'check
            (lambda* (#:key tests? #:allow-other-keys)
-             (setenv "PYTHONPATH"
-                     (string-append ".:" (getenv "PYTHONPATH")))
              (if tests?
                  (invoke "pytest" "-vv"
                          ;; Disable loading the aiohttp coverage plugin
@@ -250,9 +247,6 @@ comes with a SOCKS proxy client.")
      '(#:phases (modify-phases %standard-phases
                   (replace 'check
                     (lambda _
-                      (setenv "PYTHONPATH"
-                              (string-append "./build/lib:"
-                                             (getenv "PYTHONPATH")))
                       (invoke "pytest" "-vv"))))))
     (native-inputs
      `(("python-pytest" ,python-pytest)
@@ -364,9 +358,6 @@ Model} (SAM) templates into AWS CloudFormation templates.")
                                   "tests/ext/aiohttp/test_client.py"))))
                   (replace 'check
                     (lambda _
-                      (setenv "PYTHONPATH"
-                              (string-append "./build/lib:.:"
-                                             (getenv "PYTHONPATH")))
                       (invoke "pytest" "-vv" "tests"))))))
     (native-inputs
      `(;; These are required for the test suite.
@@ -416,11 +407,6 @@ emit information from within their applications to the AWS X-Ray service.")
                         ;; to avoid a dependency on 'git'.
                         (delete-file
                          "test/unit/module/maintenance/test_update_documentation.py")
-                        (setenv "PYTHONPATH"
-                                (string-append "./build/lib:"
-                                               (getenv "PYTHONPATH")))
-                        (setenv "PATH" (string-append out "/bin:"
-                                                      (getenv "PATH")))
                         (invoke "python" "-m" "unittest" "discover"
                                 "-s" "test")))))))
     (native-inputs
@@ -706,9 +692,6 @@ content using a variety of algorithms.")
      `(#:phases (modify-phases %standard-phases
                   (replace 'check
                     (lambda _
-                      (setenv "PYTHONPATH"
-                              (string-append "./build/lib:"
-                                             (getenv "PYTHONPATH")))
                       (invoke "pytest" "-vv"
                               ;; Prevent running the flake8 and black
                               ;; pytest plugins, which only tests style
@@ -1380,9 +1363,6 @@ another XPath engine to find the matching elements in an XML or HTML document.")
      `(#:phases (modify-phases %standard-phases
                   (replace 'check
                     (lambda _
-                      (setenv "PYTHONPATH"
-                              (string-append "./build/lib:"
-                                             (getenv "PYTHONPATH")))
                       (invoke "pytest" "tests" "-vv"
                               ;; XXX: This fails with newer Pytest
                               ;; (upstream uses Pytest 3..).
@@ -2421,13 +2401,13 @@ APIs.")
 (define-public python-requests
   (package
     (name "python-requests")
-    (version "2.24.0")
+    (version "2.25.0")
     (source (origin
              (method url-fetch)
              (uri (pypi-uri "requests" version))
              (sha256
               (base32
-               "06r3017hz0hzxv42gpg73l8xvdjbzw7q904ljvp36b5p3l9rlmdk"))))
+               "1y6mb8c0ipd64d5axq2p368yxndp3f966hmabjka2q2a5y9hn6kz"))))
     (build-system python-build-system)
     (propagated-inputs
      `(("python-certifi" ,python-certifi)
@@ -2650,14 +2630,14 @@ authenticated session objects providing things like keep-alive.")
 (define-public python-urllib3
   (package
     (name "python-urllib3")
-    (version "1.25.9")
+    (version "1.26.2")
     (source
       (origin
         (method url-fetch)
         (uri (pypi-uri "urllib3" version))
         (sha256
          (base32
-          "09rmjqm5syhhc8fx3v06h3yv6cqy0b1081jg8wm5grpwpr72j61h"))))
+          "024yldjwjavps39yb77sc422z8fa9bn20wcqrcncjwrqjab8y60r"))))
     (build-system python-build-system)
     (arguments `(#:tests? #f))
     (propagated-inputs
@@ -2841,8 +2821,6 @@ minimum of WSGI.")
        (modify-phases %standard-phases
          (replace 'check
            (lambda _
-             (setenv "PYTHONPATH" (string-append "./build/lib:"
-                                                 (getenv "PYTHONPATH")))
              (invoke "pytest" "-vv" "tests"))))))
     (native-inputs
      `(("python-pytest" ,python-pytest)))
@@ -2878,8 +2856,6 @@ presume or force a developer to use a particular tool or library.")
        (modify-phases %standard-phases
          (replace 'check
            (lambda _
-             (setenv "PYTHONPATH" (string-append "./build/lib:"
-                                                 (getenv "PYTHONPATH")))
              (invoke "pytest" "-vv"))))))
     (propagated-inputs
      `(("python-flask-babel" ,python-flask-babel)
@@ -3643,13 +3619,9 @@ for Flask.")
                     (lambda _
                       ;; This test requires 'postcss' and 'babel' which are
                       ;; not yet available in Guix.
-                      (delete-file "tests/test_filters.py")
-                      #t))
+                      (delete-file "tests/test_filters.py")))
                   (replace 'check
                     (lambda _
-                      (setenv "PYTHONPATH"
-                              (string-append "./build/lib:"
-                                             (getenv "PYTHONPATH")))
                       (invoke "pytest" "-vv"))))))
     (native-inputs
      `(("python-jinja2" ,python-jinja2)
@@ -4373,7 +4345,8 @@ Python.")
        (sha256
         (base32 "0w22fapghmzk3xdasc4dn7h8sl58l08d1h5zbf72dh80drv1g9b9"))))
     (propagated-inputs
-     `(("python-unidecode" ,python-unidecode)))
+     `(("python-unidecode" ,python-unidecode)
+       ("python-text-unidecode" ,python-text-unidecode)))
     (arguments
      `(#:phases
        (modify-phases %standard-phases
@@ -4529,12 +4502,9 @@ event loop.  It is implemented in Cython and uses libuv under the hood.")
            (lambda _
              (invoke "make" "-C" "docs" "PAPER=a4" "html" "info")
              (delete-file "docs/build/texinfo/Makefile")
-             (delete-file "docs/build/texinfo/Gunicorn.texi")
-             #t))
+             (delete-file "docs/build/texinfo/Gunicorn.texi")))
          (replace 'check
            (lambda _
-             (setenv "PYTHONPATH"
-                     (string-append ".:" (getenv "PYTHONPATH")))
              (invoke "pytest")))
          (add-after 'install 'install-doc
            (lambda* (#:key outputs #:allow-other-keys)
@@ -4551,8 +4521,7 @@ event loop.  It is implemented in Cython and uses libuv under the hood.")
                (copy-recursively "examples" examples)
                (for-each (lambda (file)
                            (copy-file file (string-append doc "/" file)))
-                         '("README.rst" "NOTICE" "LICENSE" "THANKS")))
-             #t)))))
+                         '("README.rst" "NOTICE" "LICENSE" "THANKS"))))))))
     (native-inputs
      `(("binutils" ,binutils)  ;; for ctypes.util.find_library()
        ("python-aiohttp" ,python-aiohttp)
@@ -5060,7 +5029,15 @@ Plus all the standard features of requests:
          (base32
           "03s3ml6sbki24aajllf8aily0xzrn929zxi84p50zkkbikdd4raw"))))
     (build-system python-build-system)
-    (arguments '(#:tests? #f))  ; Tests not included in release tarball.
+    (arguments
+     '(#:tests? #f  ; Tests not included in release tarball.
+       #:phases
+       (modify-phases %standard-phases
+         (add-after 'unpack 'fix-websockets-package-name-requirement
+           (lambda* (#:key inputs #:allow-other-keys)
+             ;; Python package names use dot as separator.
+             (substitute* "setup.py"
+               (("websockets/extensions") "websockets.extensions")))))))
     (home-page "https://github.com/aaugustin/websockets")
     (synopsis
      "Python implementation of the WebSocket Protocol (RFC 6455 & 7692)")

@@ -6,7 +6,7 @@
 ;;; Copyright © 2016, 2020 Jan (janneke) Nieuwenhuizen <janneke@gnu.org>
 ;;; Copyright © 2018, 2019 Tobias Geerinckx-Rice <me@tobias.gr>
 ;;; Copyright © 2018 Eric Bavier <bavier@member.fsf.org>
-;;; Copyright © 2018, 2019 Efraim Flashner <efraim@flashner.co.il>
+;;; Copyright © 2018, 2019, 2021 Efraim Flashner <efraim@flashner.co.il>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -38,7 +38,7 @@
 (define-public gmp
   (package
    (name "gmp")
-   (version "6.2.0")
+   (version "6.2.1")
    (source (origin
             (method url-fetch)
             (uri
@@ -46,7 +46,7 @@
                             version ".tar.xz"))
             (sha256
              (base32
-              "09hmg8k63mbfrx1x3yy6y1yzbbq85kw5avbibhcgrg9z3ganr3i5"))
+              "1wml97fdmpcynsbw9yl77rj29qibfp652d0w3222zlfx5j8jjj7x"))
             (patches (search-patches "gmp-faulty-test.patch"))))
    (build-system gnu-build-system)
    (native-inputs `(("m4" ,m4)))
@@ -113,13 +113,13 @@ It is aimed at use in, for example, cryptography and computational algebra.")
 (define-public mpfr
   (package
    (name "mpfr")
-   (version "4.0.2")
+   (version "4.1.0")
    (source (origin
             (method url-fetch)
             (uri (string-append "mirror://gnu/mpfr/mpfr-" version
                                 ".tar.xz"))
             (sha256 (base32
-                     "12m3amcavhpqygc499s3fzqlb8f2j2rr7fkqsm10xbjfc04fffqx"))))
+                     "0zwaanakrqjf84lfr5hfsdr7hncwv9wj0mchlr7cmxigfgqs760c"))))
    (build-system gnu-build-system)
    (outputs '("out" "debug"))
    (propagated-inputs `(("gmp" ,gmp)))            ; <mpfr.h> refers to <gmp.h>
@@ -134,14 +134,14 @@ correct rounding.")
 (define-public mpc
   (package
    (name "mpc")
-   (version "1.1.0")
+   (version "1.2.1")
    (source (origin
             (method url-fetch)
             (uri (string-append
                   "mirror://gnu/mpc/mpc-" version ".tar.gz"))
             (sha256
               (base32
-                "0biwnhjm3rx3hc0rfpvyniky4lpzsvdcwhmcn7f0h4iw2hwcb1b9"))))
+                "0n846hqfqvmsmim7qdlms0qr86f1hck19p12nq3g3z2x74n3sl0p"))))
    (build-system gnu-build-system)
    (outputs '("out" "debug"))
    (propagated-inputs `(("gmp" ,gmp)              ; <mpc.h> refers to both
@@ -319,6 +319,81 @@ Libs: -L~a/lib -ltfm~%"
 ISO C.  It is a port of LibTomMath with optional support for inline assembler
 multiplies.")
     (license public-domain)))
+
+(define-public libtomcrypt
+  (package
+    (name "libtomcrypt")
+    (version "1.18.2")
+    (outputs '("out" "static"))
+    (source
+      (origin
+        (method url-fetch)
+        (uri (string-append "https://github.com/libtom/libtomcrypt"
+                            "/releases/download/v" version
+                            "/crypt-" version ".tar.xz"))
+        (sha256
+         (base32
+          "113vfrgapyv72lalhd3nkw7jnks8az0gcb5wqn9hj19nhcxlrbcn"))
+        (modules '((guix build utils)))
+        (snippet
+         '(begin
+            ;; Patch CVE-2019-17362
+            ;; https://github.com/libtom/libtomcrypt/commit/25c26a3b7a9ad8192ccc923e15cf62bf0108ef94
+            (substitute* "src/pk/asn1/der/utf8/der_decode_utf8_string.c"
+              (("z > 4") "z == 1 || z > 4"))
+            #t))))
+    (build-system gnu-build-system)
+    (arguments
+     `(#:phases
+       (modify-phases %standard-phases
+         (delete 'configure) ; no configure
+         (add-after 'unpack 'prepare-build
+           (lambda _
+             ;; We want the shared library by default so force it to be the
+             ;; default makefile target.
+             (delete-file "makefile")
+             (symlink "makefile.shared" "makefile")
+             ;; We link to libtommath, so we need to add it to the pc file
+             (substitute* "libtomcrypt.pc.in"
+               (("-ltomcrypt") "-ltomcrypt -ltommath"))
+             #t))
+         (add-after 'build 'build-static
+           (lambda* (#:key make-flags #:allow-other-keys)
+             (apply invoke "make" "-f" "makefile.unix" make-flags)))
+         (replace 'check
+           (lambda* (#:key test-target make-flags #:allow-other-keys)
+             (apply invoke "make" "-f" "makefile.unix" test-target make-flags)
+             (invoke "./test")))
+         (add-after 'install 'install-static-library
+           (lambda* (#:key outputs #:allow-other-keys)
+             (let ((out (assoc-ref outputs "out"))
+                   (static (assoc-ref outputs "static")))
+               (mkdir-p (string-append static "/lib"))
+               (mkdir-p (string-append static "/include"))
+               (rename-file (string-append out "/lib/libtomcrypt.a")
+                            (string-append static "/lib/libtomcrypt.a"))
+               (copy-recursively (string-append out "/include")
+                                 (string-append static "/include"))
+               #t))))
+       #:test-target "test"
+       #:make-flags
+       (list (string-append "PREFIX=" (assoc-ref %outputs "out"))
+             "CFLAGS += -DLTM_DESC -DUSE_LTM"
+             (string-append "EXTRALIBS=" (assoc-ref %build-inputs "libtommath")
+                            "/lib/libtommath.so")
+             (string-append "CC=" ,(cc-for-target)))))
+    (native-inputs
+     `(("libtool" ,libtool)))
+    (inputs
+     `(("libtommath" ,libtommath)))
+    (home-page "https://www.libtom.net/LibTomCrypt/")
+    (synopsis "Cryptographic toolkit")
+    (description "LibTomCrypt is a fairly comprehensive, modular and portable
+cryptographic toolkit that provides developers with a vast array of well known
+published block ciphers, one-way hash functions, chaining modes, pseudo-random
+number generators, public key cryptography and a plethora of other routines.")
+    (properties `((lint-hidden-cve . ("CVE-2019-17362"))))
+    (license unlicense)))
 
 (define-public libtommath
   (package

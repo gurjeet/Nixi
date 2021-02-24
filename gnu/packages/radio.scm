@@ -304,7 +304,7 @@ used by RDS Spy, and audio files containing @dfn{multiplex} signals (MPX).")
        ("python-scipy" ,python-scipy)
        ("python-sphinx" ,python-sphinx)
        ("swig" ,swig)
-       ("texlive" ,(texlive-union (list texlive-amsfonts
+       ("texlive" ,(texlive-updmap.cfg (list texlive-amsfonts
                                         texlive-latex-amsmath
                                         ;; TODO: Add newunicodechar.
                                         texlive-latex-graphics)))
@@ -401,7 +401,7 @@ used by RDS Spy, and audio files containing @dfn{multiplex} signals (MPX).")
             (variable "GRC_BLOCKS_PATH")
             (files '("share/gnuradio/grc/blocks")))
            (search-path-specification
-            (variable "PYTHONPATH")
+            (variable "GUIX_PYTHONPATH")
             (files (list (string-append "lib/python"
                                         (version-major+minor
                                          (package-version python))
@@ -472,7 +472,7 @@ to access different radio hardware.")
        ("doxygen" ,doxygen)
        ("libtool" ,libtool)
        ("pkg-config" ,pkg-config)
-       ("texlive" ,(texlive-union (list texlive-amsfonts
+       ("texlive" ,(texlive-updmap.cfg (list texlive-amsfonts
                                         texlive-latex-amsmath
                                         ;; TODO: Add newunicodechar.
                                         texlive-latex-graphics)))))
@@ -1188,3 +1188,43 @@ NanoVNA vector network analyzers.")
 (sometimes called DSSTV).  It is compatible with most of MMSSTV and EasyPal.")
     (license (list license:gpl2+
                    license:qwt1.0))))
+
+(define-public direwolf
+  (package
+    (name "direwolf")
+    (version "1.6")
+    (source
+     (origin
+       (method git-fetch)
+       (uri (git-reference
+             (url "https://github.com/wb2osz/direwolf")
+             (commit version)))
+       (file-name (git-file-name name version))
+       (sha256
+        (base32 "0xmz64m02knbrpasfij4rrq53ksxna5idxwgabcw4n2b1ig7pyx5"))))
+    (build-system cmake-build-system)
+    (inputs
+     `(("alsa-lib" ,alsa-lib)
+       ("hamlib" ,hamlib)))
+    (arguments
+     `(#:phases
+       (modify-phases %standard-phases
+         (add-after 'unpack 'fix-paths
+           (lambda* (#:key outputs #:allow-other-keys)
+             (substitute* "conf/CMakeLists.txt"
+               (("DESTINATION /etc")
+                (string-append "DESTINATION "
+                               (assoc-ref outputs "out")
+                               "/etc"))))))))
+    (home-page "https://github.com/wb2osz/direwolf")
+    (synopsis "TNC for Amateur Packet Radio")
+    (description
+     "Dire Wolf is a Terminal Node Controller (TNC) for Amateur Packet Radio.
+It can perform as:
+@itemize
+@item APRS GPS tracker,
+@item Digipeater,
+@item Internet gateway (IGate)
+@item APRStt gateway
+@end itemize\n")
+    (license license:gpl2+)))

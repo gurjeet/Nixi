@@ -168,10 +168,7 @@
                                     "/site-packages")))
                ;; The Python install scripts refuses to function if
                ;; the install directory is not on PYTHONPATH.
-               (setenv "PYTHONPATH"
-                       (string-append py3sitedir ":"
-                                      (getenv "PYTHONPATH")))
-               #t)))
+               (setenv "PYTHONPATH" py3sitedir))))
          (add-after 'install 'wrap-python-scripts
            (lambda* (#:key inputs outputs #:allow-other-keys)
              (let* ((out (assoc-ref outputs "out"))
@@ -190,7 +187,7 @@
                                  (sitedir prettytable))))
                (for-each (lambda (executable)
                            (wrap-program (string-append out "/bin/" executable)
-                             `("PYTHONPATH" ":" prefix (,PYTHONPATH))))
+                             `("GUIX_PYTHONPATH" ":" prefix (,PYTHONPATH))))
                          scripts)
                #t))))))
     (outputs
