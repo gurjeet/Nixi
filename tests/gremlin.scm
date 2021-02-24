@@ -65,8 +65,7 @@
              ;; When Guix has been built on a foreign distro, using a
              ;; toolchain and libraries from that foreign distro, it is not
              ;; unusual for the runpath to be empty.
-             (and=> (file-runpath %guile-executable)
-                    (compose not null-list?)))
+             (pair? (file-runpath %guile-executable)))
   (test-skip 1))
 (test-assert "file-needed/recursive"
   (let* ((needed (file-needed/recursive %guile-executable))
