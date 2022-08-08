@@ -2,7 +2,7 @@ Overview
 ========
 
 Nixi is a package manager based on the [Guix][1] package manager. Following are
-the thing that Nixi provides:
+the things that Nixi provides:
 
 - A better pronouncable name
 - Package management for macOS
